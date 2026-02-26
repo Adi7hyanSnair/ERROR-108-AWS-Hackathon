@@ -1,15 +1,32 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: NeuroTidy AWS - Code Analysis Pipeline
+Description: NeuroTidy AWS — AI-Powered Python Code Analyzer (4 endpoints)
 
 Parameters:
   BedrockModelId:
     Type: String
     Default: anthropic.claude-3-sonnet-20240229-v1:0
-    Description: Amazon Bedrock model ID
+    Description: Amazon Bedrock model ID (must be enabled in your AWS account)
+    AllowedValues:
+      - anthropic.claude-3-sonnet-20240229-v1:0
+      - anthropic.claude-3-haiku-20240307-v1:0
+      - anthropic.claude-3-opus-20240229-v1:0
+      - meta.llama3-70b-instruct-v1:0
+      - meta.llama3-8b-instruct-v1:0
+      - mistral.mistral-large-2402-v1:0
+
+  CacheTtlSeconds:
+    Type: Number
+    Default: 86400
+    Description: DynamoDB TTL for cached results (seconds). 86400 = 24 hours.
+
+  S3ExpiryDays:
+    Type: Number
+    Default: 30
+    Description: How many days to keep analysis results in S3.
 
 Resources:
-  # S3 Bucket for storing analysis results
+  # ─── S3 Bucket ───────────────────────────────────────────
   AnalysisResultsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -20,9 +37,9 @@ Resources:
         Rules:
           - Id: DeleteOldAnalyses
             Status: Enabled
-            ExpirationInDays: 30
+            ExpirationInDays: !Ref S3ExpiryDays
 
-  # DynamoDB Table for metadata cache
+  # ─── DynamoDB Table ──────────────────────────────────────
   MetadataTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -38,7 +55,7 @@ Resources:
         Enabled: true
         AttributeName: ttl
 
-  # Lambda Execution Role
+  # ─── IAM Role ────────────────────────────────────────────
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -72,7 +89,7 @@ Resources:
                   - bedrock:InvokeModel
                 Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}'
 
-  # Lambda Function
+  # ─── Lambda Function ─────────────────────────────────────
   AnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -88,15 +105,46 @@ Resources:
           S3_BUCKET: !Ref AnalysisResultsBucket
           DYNAMODB_TABLE: !Ref MetadataTable
           BEDROCK_MODEL_ID: !Ref BedrockModelId
+          CACHE_TTL_SECONDS: !Ref CacheTtlSeconds
+          AWS_REGION_NAME: !Ref AWS::Region
       Events:
-        ApiEvent:
+        # Endpoint 1: Code Explanation
+        ExplainEvent:
+          Type: Api
+          Properties:
+            Path: /explain
+            Method: POST
+            RestApiId: !Ref ApiGateway
+        # Endpoint 2: Static Analysis
+        AnalyzeEvent:
           Type: Api
           Properties:
             Path: /analyze
             Method: POST
             RestApiId: !Ref ApiGateway
+        # Endpoint 3: DL Optimizer
+        OptimizeEvent:
+          Type: Api
+          Properties:
+            Path: /optimize
+            Method: POST
+            RestApiId: !Ref ApiGateway
+        # Endpoint 4: Bug Debugger
+        DebugEvent:
+          Type: Api
+          Properties:
+            Path: /debug
+            Method: POST
+            RestApiId: !Ref ApiGateway
+        # CORS preflight for all routes
+        CorsOptions:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGateway
 
-  # API Gateway
+  # ─── API Gateway ─────────────────────────────────────────
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -108,18 +156,35 @@ Resources:
         AllowMethods: "'POST,OPTIONS'"
 
 Outputs:
-  ApiEndpoint:
-    Description: API Gateway endpoint URL
+  ExplainEndpoint:
+    Description: Code explanation endpoint
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/explain'
+
+  AnalyzeEndpoint:
+    Description: Static analysis endpoint
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/analyze'
-  
+
+  OptimizeEndpoint:
+    Description: DL optimization endpoint
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/optimize'
+
+  DebugEndpoint:
+    Description: Bug debugger endpoint
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/debug'
+
+  BaseApiUrl:
+    Description: Base API URL (set this as NEUROTIDY_API_ENDPOINT in config.env)
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+
   S3Bucket:
     Description: S3 bucket for analysis results
     Value: !Ref AnalysisResultsBucket
-  
+
   DynamoDBTable:
-    Description: DynamoDB table for metadata
+    Description: DynamoDB table for metadata cache
     Value: !Ref MetadataTable
-  
+
   LambdaFunction:
     Description: Lambda function ARN
     Value: !GetAtt AnalyzerFunction.Arn
+

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroTidy — AI Python Code Analyzer</title>
+  <meta name="description" content="AI-powered Python & Deep Learning code analyzer built on AWS Bedrock. Explain, analyze, optimize, and debug your code instantly." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ─── Header ─────────────────────────────────────────────────────── -->
+  <header class="glass-nav">
+    <div class="nav-inner">
+      <div class="logo">
+        <span class="logo-icon">🧠</span>
+        <span class="logo-text">NeuroTidy</span>
+        <span class="logo-badge">AWS Bedrock</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#analyzer" class="nav-link">Analyzer</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#api" class="nav-link">API Docs</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ─── Hero ──────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero-glow glow-1"></div>
+    <div class="hero-glow glow-2"></div>
+    <div class="hero-content">
+      <div class="hero-badge">🏆 AWS Hackathon 2024</div>
+      <h1 class="hero-title">
+        AI-Powered Code<br />
+        <span class="gradient-text">Understanding</span>
+      </h1>
+      <p class="hero-subtitle">
+        Explain, analyze, optimize, and debug your Python & Deep Learning code
+        with the power of Amazon Bedrock AI.
+      </p>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num">4</span><span class="stat-label">AI Modes</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num">17+</span><span class="stat-label">ML Rules</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num">&lt;2s</span><span class="stat-label">Response</span></div>
+      </div>
+      <a href="#analyzer" class="hero-cta">Start Analyzing →</a>
+    </div>
+    <div class="hero-code-preview">
+      <div class="code-window">
+        <div class="code-window-header">
+          <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+          <span class="code-title">train.py</span>
+        </div>
+        <pre class="code-preview-body"><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="kw">class</span> <span class="cls">SimpleNet</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        <span class="kw">super</span>().<span class="fn">__init__</span>()
+        self.fc = nn.Linear(<span class="num">784</span>, <span class="num">10</span>)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="kw">return</span> self.fc(x)</code></pre>
+        <div class="analysis-badge">✅ 2 optimizations found</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Mode Tabs + Analyzer ──────────────────────────────────────── -->
+  <section id="analyzer" class="analyzer-section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Code <span class="gradient-text">Analyzer</span></h2>
+        <p>Paste your Python code and choose an analysis mode</p>
+      </div>
+
+      <!-- Endpoint config (hidden by default if API set) -->
+      <div class="endpoint-bar" id="endpointBar">
+        <label for="apiEndpoint">🔗 API Endpoint</label>
+        <input type="text" id="apiEndpoint" placeholder="https://your-api-id.execute-api.us-east-1.amazonaws.com/prod"
+               value="" />
+        <button class="btn-save" onclick="saveEndpoint()">Save</button>
+        <span class="endpoint-hint">Set this to your deployed API URL (from deploy script output)</span>
+      </div>
+
+      <!-- Mode Tabs -->
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="explain" onclick="setMode('explain')">
+          <span class="tab-icon">📖</span> Explain
+        </button>
+        <button class="mode-tab" data-mode="analyze" onclick="setMode('analyze')">
+          <span class="tab-icon">🔍</span> Analyze
+        </button>
+        <button class="mode-tab" data-mode="optimize" onclick="setMode('optimize')">
+          <span class="tab-icon">⚡</span> Optimize
+        </button>
+        <button class="mode-tab" data-mode="debug" onclick="setMode('debug')">
+          <span class="tab-icon">🐛</span> Debug
+        </button>
+      </div>
+
+      <!-- Mode Options -->
+      <div class="mode-options" id="modeOptions">
+        <!-- Explain options -->
+        <div class="option-row" id="opts-explain">
+          <label>Level:</label>
+          <div class="radio-group">
+            <label class="radio-label"><input type="radio" name="explainMode" value="beginner" /> Beginner</label>
+            <label class="radio-label"><input type="radio" name="explainMode" value="intermediate" checked /> Intermediate</label>
+            <label class="radio-label"><input type="radio" name="explainMode" value="advanced" /> Advanced</label>
+          </div>
+        </div>
+        <!-- Debug options -->
+        <div class="option-row hidden" id="opts-debug">
+          <label for="errorMsg">Error message:</label>
+          <input type="text" id="errorMsg" placeholder='e.g. RuntimeError: mat1 and mat2 shapes cannot be multiplied (128x10 and 784x10)' />
+        </div>
+      </div>
+
+      <!-- Code Editor -->
+      <div class="editor-container">
+        <div class="editor-header">
+          <span class="editor-label">Python Code</span>
+          <div class="editor-actions">
+            <button class="btn-ghost" onclick="loadSample()">Load Sample</button>
+            <button class="btn-ghost" onclick="clearCode()">Clear</button>
+          </div>
+        </div>
+        <textarea id="codeInput" class="code-editor" spellcheck="false"
+          placeholder="# Paste your Python or Deep Learning code here…
+
+import torch
+import torch.nn as nn
+
+class MyModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc = nn.Linear(784, 10)
+    
+    def forward(self, x):
+        return self.fc(x)"></textarea>
+      </div>
+
+      <!-- Run Button -->
+      <div class="run-row">
+        <button class="btn-run" id="runBtn" onclick="runAnalysis()">
+          <span id="runBtnText">🚀 Analyze Code</span>
+          <div class="spinner hidden" id="spinner"></div>
+        </button>
+        <span class="run-note" id="runNote"></span>
+      </div>
+
+      <!-- Result Panel -->
+      <div class="result-panel hidden" id="resultPanel">
+        <div class="result-header">
+          <h3 id="resultTitle">Result</h3>
+          <span class="result-id" id="resultId"></span>
+          <button class="btn-ghost btn-small" onclick="copyResult()">Copy</button>
+        </div>
+        <div class="result-body" id="resultBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Features ──────────────────────────────────────────────────── -->
+  <section id="features" class="features-section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Built for <span class="gradient-text">Developers & Students</span></h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📖</div>
+          <h3>Code Explanation</h3>
+          <p>Get beginner-friendly to advanced explanations of any Python code. Perfect for learning and code review.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔍</div>
+          <h3>Static Analysis</h3>
+          <p>17+ rules covering Python best practices and ML-specific anti-patterns. Catches bugs before they happen.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>DL Optimizer</h3>
+          <p>Detects missing torch.no_grad(), inefficient DataLoaders, device transfers, and more. Boost training speed.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🐛</div>
+          <h3>Bug Debugger</h3>
+          <p>Paste your error message and get root cause analysis, faulty line detection, and step-by-step fixes.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">☁️</div>
+          <h3>AWS Serverless</h3>
+          <p>Lambda + API Gateway + S3 + DynamoDB. Scales to zero cost when idle, massive scale when needed.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>Private & Secure</h3>
+          <p>Your code never leaves your AWS account. All processing in your own Bedrock + Lambda environment.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── API Reference ─────────────────────────────────────────────── -->
+  <section id="api" class="api-section">
+    <div class="container">
+      <div class="section-header">
+        <h2>API <span class="gradient-text">Reference</span></h2>
+        <p>All endpoints accept POST with JSON body</p>
+      </div>
+      <div class="api-grid">
+        <div class="api-card" onclick="setApiExample('explain')">
+          <div class="api-method">POST</div>
+          <div class="api-path">/explain</div>
+          <p>Explain code at beginner / intermediate / advanced level</p>
+          <pre class="api-example">{ "code": "...", "mode": "beginner" }</pre>
+        </div>
+        <div class="api-card" onclick="setApiExample('analyze')">
+          <div class="api-method">POST</div>
+          <div class="api-path">/analyze</div>
+          <p>Run static analysis and get violations with AI insights</p>
+          <pre class="api-example">{ "code": "...", "use_ai": true }</pre>
+        </div>
+        <div class="api-card" onclick="setApiExample('optimize')">
+          <div class="api-method">POST</div>
+          <div class="api-path">/optimize</div>
+          <p>Find DL performance issues and get optimization suggestions</p>
+          <pre class="api-example">{ "code": "..." }</pre>
+        </div>
+        <div class="api-card" onclick="setApiExample('debug')">
+          <div class="api-method">POST</div>
+          <div class="api-path">/debug</div>
+          <p>Debug Python errors with root cause + fix suggestions</p>
+          <pre class="api-example">{ "error": "...", "stack_trace": "...", "code": "..." }</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Footer ────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo">🧠 NeuroTidy</div>
+      <div class="footer-text">Built with ❤️ for the AWS Hackathon 2024 · Powered by Amazon Bedrock</div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
