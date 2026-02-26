@@ -28,3 +28,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# ⭐ CREDENTIALS — NEVER COMMIT THIS FILE
+config.env
