@@ -17,7 +17,7 @@ class RAGOptimizer:
     3. Uses LLM to apply rules with skill-level awareness
     """
 
-    def __init__(self, bedrock_client, bedrock_agent_client, model_id: str, knowledge_base_id: str = None):
+    def __init__(self, bedrock_client, bedrock_agent_client, model_id: str, knowledge_base_id: Optional[str] = None):
         """
         Args:
             bedrock_client: Bedrock runtime client for LLM
@@ -205,7 +205,7 @@ class RAGOptimizer:
                     }
                 }
             )
-            
+
             # Extract rules from retrieval results
             rules = []
             for result in response.get('retrievalResults', []):
@@ -213,13 +213,14 @@ class RAGOptimizer:
                 try:
                     rule = json.loads(content)
                     rules.append(rule)
-                except:
-                    pass
-            
+                except (json.JSONDecodeError, ValueError):
+                    pass  # Skip non-JSON retrieval results
+
             return rules
         except Exception as e:
             print(f"Knowledge base retrieval error: {e}")
             return []
+
 
     def _filter_local_rules(self, features: Dict, mode: str) -> List[dict]:
         """Filter local rules based on code features"""

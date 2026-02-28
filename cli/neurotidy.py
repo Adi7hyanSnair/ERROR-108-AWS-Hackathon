@@ -7,6 +7,9 @@ Usage:
   python neurotidy.py analyze myfile.py
   python neurotidy.py optimize myfile.py
   python neurotidy.py debug --error "NameError: name 'x' is not defined"
+  
+  python neurotidy.py review --diff path/to/changes.diff
+  python neurotidy.py review --repo owner/repo --pr 42
 """
 
 import argparse
@@ -20,7 +23,7 @@ import urllib.request
 import urllib.error
 
 
-# ─── Config ─────────────────────────────────────────────────────────────────
+# ─── Config ───────────────────────────────────────────────────────────────────
 def load_config() -> str:
     """Load API endpoint from config.env or environment."""
     # 1. Try environment variable
@@ -31,7 +34,7 @@ def load_config() -> str:
     # 2. Try reading from config.env in the project root
     config_path = Path(__file__).parent.parent / 'config.env'
     if config_path.exists():
-        for line in config_path.read_text().splitlines():
+        for line in config_path.read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if line.startswith('NEUROTIDY_API_ENDPOINT=') and not line.startswith('#'):
                 val = line.split('=', 1)[1].strip()
@@ -63,116 +66,296 @@ def call_api(endpoint: str, path: str, payload: dict) -> dict:
         return {'error': f"Connection error: {e.reason}"}
 
 
-# ─── Pretty Printers ─────────────────────────────────────────────────────────
-BOLD   = '\033[1m'
-CYAN   = '\033[96m'
-GREEN  = '\033[92m'
-YELLOW = '\033[93m'
-RED    = '\033[91m'
-RESET  = '\033[0m'
+# ─── Theme ────────────────────────────────────────────────────────────────────
+RESET   = '\033[0m'
+BOLD    = '\033[1m'
+DIM     = '\033[2m'
+ITALIC  = '\033[3m'
+
+# CodeRabbit-inspired palette: deep purple/indigo + mint green accents
+PURPLE  = '\033[38;5;135m'   # primary brand
+INDIGO  = '\033[38;5;105m'   # secondary
+MINT    = '\033[38;5;121m'   # success / positive
+AMBER   = '\033[38;5;220m'   # warning
+ROSE    = '\033[38;5;204m'   # error / critical
+SKY     = '\033[38;5;117m'   # info / headings
+GREY    = '\033[38;5;245m'   # muted text
+WHITE   = '\033[38;5;255m'   # primary text
+
+BG_DARK = '\033[48;5;234m'   # subtle dark bg for panels
+
+# Legacy aliases kept for internal use
+CYAN    = SKY
+GREEN   = MINT
+YELLOW  = AMBER
+RED     = ROSE
 
 
-def _h(text: str, color: str = CYAN) -> str:
+# ─── UI Primitives ────────────────────────────────────────────────────────────
+_W = 72  # terminal width target
+
+def _rule(char='─', color=GREY):
+    return f"{color}{char * _W}{RESET}"
+
+def _badge(text, color=PURPLE):
+    return f"{color}{BOLD} {text} {RESET}"
+
+def _label(text, color=SKY):
     return f"{color}{BOLD}{text}{RESET}"
+
+def _pill(text, color=MINT):
+    return f"{color}[{text}]{RESET}"
+
+def _icon_line(icon, label, value, label_color=GREY, value_color=WHITE):
+    return f"  {icon}  {label_color}{label:<18}{RESET}{value_color}{value}{RESET}"
+
+def _section(title, color=PURPLE):
+    bar = f"{color}{'━' * _W}{RESET}"
+    heading = f"  {color}{BOLD}{title}{RESET}"
+    return f"\n{bar}\n{heading}\n{bar}"
 
 
 def print_banner():
-    print(f"""
-{CYAN}╔══════════════════════════════════════╗
-║   NeuroTidy — AI Code Analyzer v1.0  ║
-╚══════════════════════════════════════╝{RESET}
-""")
+    PENGUIN = r"""
+                                                                                
+                                  ▄▄▄▄▄                                         
+                          ▀▀███▄█████████▄                                      
+                              ▀████████████▄                                    
+                                ▀███████████▄                                   
+                                  ███████████▄                                  
+                                  ████████████▄                                 
+                                  ▀    ▀███████▄                                
+                                         ▀██████▄▄▄                             
+                                ▄          ██████████▄                          
+                               █▀           ████████████▄                       
+                              ██             █████████████▄                     
+                             ███▄             ████▀████████▄                    
+                             ████             ▀███   ▀▀██████                   
+                            ▄████              ███        ▀▀██                  
+                            █████▄              ███                             
+                            ██████              ███                             
+                             █▀▀ ██             ███                             
+                                 ██▄            ███                             
+                                 ▄██            ███                             
+                              ▄██████▄       ▄▄▄███                             
+                              ▀▀▀▀▀▀▀▀       ▀███▀▀                             
+                                                                                             
+    """
+
+    # Print penguin in purple
+    for line in PENGUIN.splitlines():
+        print(f"{PURPLE}{line}{RESET}")
+
+    print(f"  {PURPLE}{BOLD}NeuroTidy{RESET}  {DIM}v1.1.0{RESET}  {GREY}·  AI-Powered Python & Deep Learning Code Analyzer{RESET}")
+    print(f"  {DIM}github.com/ERROR-108-AWS-Hackathon{RESET}")
+    print()
+    print(_rule('─', GREY))
+    print()
+
+    cmds = [
+        ("explain",  "✦", "Explain code in plain language"),
+        ("analyze",  "✦", "Static quality & style analysis"),
+        ("optimize", "✦", "DL performance optimization tips"),
+        ("debug",    "✦", "Diagnose errors & suggest fixes"),
+        ("review",   "✦", "AI PR code review bot"),
+    ]
+    print(f"  {GREY}{BOLD}COMMANDS{RESET}")
+    print()
+    for name, icon, desc in cmds:
+        print(f"  {MINT}{icon}{RESET}  {WHITE}{BOLD}{name:<10}{RESET}  {GREY}{desc}{RESET}")
+
+    print()
+    print(_rule('─', GREY))
+    print()
 
 
+# ─── Pretty Printers ──────────────────────────────────────────────────────────
 def print_explanation(result: dict):
-    print(_h("📖 Code Explanation"))
+    print(_section("📖  CODE EXPLANATION", PURPLE))
     explanation = result.get('explanation', '')
     if isinstance(explanation, dict):
         explanation = json.dumps(explanation, indent=2)
-    print(textwrap.fill(str(explanation), width=90))
+    print()
+    for para in str(explanation).split('\n'):
+        if para.strip():
+            print(textwrap.fill(para, width=_W, initial_indent='  ', subsequent_indent='  '))
+        else:
+            print()
     print()
 
 
 def print_analysis(result: dict):
-    print(_h("🔍 Static Analysis Report"))
-    print(f"  {result.get('summary', '')}")
+    print(_section("🔍  STATIC ANALYSIS REPORT", PURPLE))
+    print()
+    summary = result.get('summary', '')
+    if summary:
+        print(f"  {GREY}{summary}{RESET}")
+        print()
+
     violations = result.get('violations', [])
     if violations:
-        print(f"\n  {_h('Violations:', YELLOW)}")
+        print(f"  {AMBER}{BOLD}{'VIOLATIONS':}{RESET}  {GREY}({len(violations)} found){RESET}")
+        print()
         for v in violations:
             severity = v.get('severity', '')
-            color = RED if severity in ('CRITICAL', 'HIGH') else YELLOW if severity == 'MEDIUM' else RESET
-            line = f"  L{v.get('line_number', '?')}" if v.get('line_number') else ""
-            print(f"    {color}[{severity}]{RESET} [{v.get('rule_id')}]{line} {v.get('description')}")
+            if severity in ('CRITICAL', 'HIGH'):
+                sc, tag = ROSE, f"● {severity}"
+            elif severity == 'MEDIUM':
+                sc, tag = AMBER, f"◆ {severity}"
+            else:
+                sc, tag = GREY, f"○ {severity}"
+
+            line_ref = f"  line {v.get('line_number')}" if v.get('line_number') else ''
+            rule_id  = v.get('rule_id', '')
+            desc     = v.get('description', '')
+
+            print(f"  {sc}{BOLD}{tag:<14}{RESET}  {DIM}{rule_id}{line_ref}{RESET}")
+            print(f"  {'':14}  {WHITE}{desc}{RESET}")
+            print()
+
     ai = result.get('ai_insights', {})
     if ai and not ai.get('error'):
-        print(f"\n  {_h('AI Insights:', CYAN)}")
+        print(f"  {SKY}{BOLD}AI INSIGHTS{RESET}")
+        print()
         if 'readability_score' in ai:
-            print(f"    Readability: {ai['readability_score']}/100  |  Maintainability: {ai.get('maintainability_score', '?')}/100")
+            rb = ai['readability_score']
+            mb = ai.get('maintainability_score', '?')
+            print(f"  {_label('Readability',     GREY)}    {_score_bar(rb)}  {WHITE}{rb}/100{RESET}")
+            print(f"  {_label('Maintainability', GREY)}    {_score_bar(mb)}  {WHITE}{mb}/100{RESET}")
+            print()
         if 'top_recommendation' in ai:
-            print(f"    💡 Top recommendation: {ai['top_recommendation']}")
+            print(f"  {MINT}💡{RESET}  {WHITE}{ai['top_recommendation']}{RESET}")
+            print()
+
+    print(_rule('─', GREY))
     print()
 
 
+def _score_bar(score, width=16):
+    try:
+        n = int(score)
+        filled = round(n / 100 * width)
+        color = MINT if n >= 70 else AMBER if n >= 40 else ROSE
+        bar = f"{color}{'█' * filled}{DIM}{'░' * (width - filled)}{RESET}"
+        return bar
+    except Exception:
+        return f"{DIM}{'░' * width}{RESET}"
+
+
 def print_optimization(result: dict):
-    print(_h("⚡ DL Optimization Report"))
-    print(f"  {result.get('summary', '')}")
+    print(_section("⚡  DL OPTIMIZATION REPORT", PURPLE))
+    print()
+    summary = result.get('summary', '')
+    if summary:
+        print(f"  {GREY}{summary}{RESET}")
+        print()
+
     violations = result.get('violations', [])
     if violations:
-        print(f"\n  {_h('Issues Found:', YELLOW)}")
+        print(f"  {AMBER}{BOLD}ISSUES FOUND{RESET}  {GREY}({len(violations)}){RESET}")
+        print()
         for v in violations:
             severity = v.get('severity', '')
-            color = RED if severity == 'HIGH' else YELLOW if severity == 'MEDIUM' else RESET
-            print(f"    {color}[{severity}]{RESET} [{v.get('rule_id')}] {v.get('description')}")
-            print(f"          → {GREEN}{v.get('suggested_fix', '')}{RESET}")
+            sc = ROSE if severity == 'HIGH' else AMBER if severity == 'MEDIUM' else GREY
+            print(f"  {sc}{BOLD}{'▸ ' + severity:<12}{RESET}  {DIM}[{v.get('rule_id')}]{RESET}")
+            print(f"  {'':12}  {WHITE}{v.get('description', '')}{RESET}")
+            fix = v.get('suggested_fix', '')
+            if fix:
+                print(f"  {'':12}  {MINT}→  {fix}{RESET}")
+            print()
+
     ai = result.get('ai_insights', {})
     if ai and not ai.get('error'):
-        print(f"\n  {_h('AI Performance Insights:', CYAN)}")
+        print(f"  {SKY}{BOLD}AI PERFORMANCE INSIGHTS{RESET}")
+        print()
         if 'performance_score' in ai:
-            print(f"    Performance score: {ai['performance_score']}/100")
+            ps = ai['performance_score']
+            print(f"  {_label('Performance', GREY)}       {_score_bar(ps)}  {WHITE}{ps}/100{RESET}")
         if 'estimated_speedup' in ai:
-            print(f"    Estimated speedup: {ai['estimated_speedup']}")
+            print(f"  {MINT}⚡{RESET}  Estimated speedup:  {WHITE}{ai['estimated_speedup']}{RESET}")
         for tip in ai.get('quick_wins', []):
-            print(f"    ✓ {tip}")
+            print(f"  {MINT}✓{RESET}  {WHITE}{tip}{RESET}")
+        print()
+
+    print(_rule('─', GREY))
     print()
 
 
 def print_debug(result: dict):
-    print(_h("🐛 Bug Analysis Report"))
-    print(f"  Error type: {RED}{result.get('error_type', 'Unknown')}{RESET}")
-    print(f"  Root cause: {result.get('root_cause', '')}")
+    print(_section("🐛  BUG ANALYSIS REPORT", PURPLE))
+    print()
+    print(f"  {_label('Error Type',  GREY)}    {ROSE}{BOLD}{result.get('error_type', 'Unknown')}{RESET}")
+    print(f"  {_label('Root Cause',  GREY)}    {WHITE}{result.get('root_cause', '')}{RESET}")
+
     faulty_lines = result.get('faulty_lines', [])
     if faulty_lines:
-        print(f"  Faulty lines: {', '.join(str(l) for l in faulty_lines)}")
+        lns = ', '.join(f"L{l}" for l in faulty_lines)
+        print(f"  {_label('Faulty Lines', GREY)}   {AMBER}{lns}{RESET}")
+
     tips = result.get('learning_tips', [])
     if tips:
-        print(f"\n  {_h('Learning Tips:', CYAN)}")
+        print()
+        print(f"  {SKY}{BOLD}LEARNING TIPS{RESET}")
+        print()
         for tip in tips:
-            print(f"    • {tip}")
+            print(f"  {GREY}•{RESET}  {WHITE}{tip}{RESET}")
+
     fixes = result.get('suggested_fixes', [])
     if fixes:
-        print(f"\n  {_h('Suggested Fixes:', GREEN)}")
+        print()
+        print(f"  {MINT}{BOLD}SUGGESTED FIXES{RESET}")
+        print()
         for fix in fixes:
-            print(f"    → {fix}")
+            print(f"  {MINT}→{RESET}  {WHITE}{fix}{RESET}")
+
     ai = result.get('explanation', {})
     if isinstance(ai, dict) and 'simple_explanation' in ai:
-        print(f"\n  {_h('AI Explanation:', CYAN)}")
-        print(f"    {ai['simple_explanation']}")
+        print()
+        print(f"  {SKY}{BOLD}AI EXPLANATION{RESET}")
+        print()
+        print(f"  {WHITE}{ai['simple_explanation']}{RESET}")
         steps = ai.get('step_by_step_fix', [])
         if steps:
-            print(f"\n  {_h('Step-by-Step Fix:', GREEN)}")
-            for s in steps:
-                print(f"    {s}")
+            print()
+            print(f"  {MINT}{BOLD}STEP-BY-STEP FIX{RESET}")
+            print()
+            for i, s in enumerate(steps, 1):
+                print(f"  {PURPLE}{BOLD}{i}.{RESET}  {WHITE}{s}{RESET}")
+
+    print()
+    print(_rule('─', GREY))
     print()
 
 
-# ─── Commands ───────────────────────────────────────────────────────────────
+def print_review(result: dict):
+    status = result.get('status', '')
+    status_color = MINT if status.lower() in ('success', 'posted', 'ok') else AMBER
+
+    print(_section("🔍  PR REVIEW REPORT", PURPLE))
+    print()
+    print(_icon_line('●', 'Status',         f"{status_color}{BOLD}{status}{RESET}",         GREY, ''))
+    print(_icon_line('·', 'PR Number',       f"#{result.get('pr_number', '?')}",             GREY, WHITE))
+    print(_icon_line('·', 'Repository',      result.get('repo', ''),                         GREY, WHITE))
+    print(_icon_line('·', 'Files Reviewed',  str(result.get('files_reviewed', 0)),            GREY, WHITE))
+    print(_icon_line('·', 'Comments Posted', str(result.get('comments_posted', 0)),           GREY, WHITE))
+
+    reason = result.get('reason', '')
+    if reason:
+        print()
+        print(f"  {AMBER}ℹ  {reason}{RESET}")
+
+    print()
+    print(_rule('─', GREY))
+    print()
+
+
+# ─── Commands ─────────────────────────────────────────────────────────────────
 def cmd_explain(args, endpoint: str):
     code = Path(args.file).read_text() if args.file else args.code
     if not code:
         print(f"{RED}Error: provide a file or --code{RESET}")
         sys.exit(1)
-    print(f"  Explaining code ({args.mode} mode)…\n")
+    print(f"  {GREY}Explaining code  {DIM}({args.mode} mode){RESET}  …\n")
     result = call_api(endpoint, 'explain', {'code': code, 'mode': args.mode})
     if 'error' in result:
         print(f"{RED}Error: {result['error']}{RESET}")
@@ -185,7 +368,7 @@ def cmd_analyze(args, endpoint: str):
     if not code:
         print(f"{RED}Error: provide a file or --code{RESET}")
         sys.exit(1)
-    print(f"  Analyzing code quality…\n")
+    print(f"  {GREY}Analyzing code quality …{RESET}\n")
     result = call_api(endpoint, 'analyze', {'code': code, 'use_ai': not args.no_ai})
     if 'error' in result:
         print(f"{RED}Error: {result['error']}{RESET}")
@@ -198,7 +381,7 @@ def cmd_optimize(args, endpoint: str):
     if not code:
         print(f"{RED}Error: provide a file or --code{RESET}")
         sys.exit(1)
-    print(f"  Checking for DL optimizations…\n")
+    print(f"  {GREY}Checking for DL optimizations …{RESET}\n")
     result = call_api(endpoint, 'optimize', {'code': code, 'use_ai': not args.no_ai})
     if 'error' in result:
         print(f"{RED}Error: {result['error']}{RESET}")
@@ -210,7 +393,7 @@ def cmd_debug(args, endpoint: str):
     code = ""
     if args.file:
         code = Path(args.file).read_text()
-    print(f"  Debugging error…\n")
+    print(f"  {GREY}Debugging error …{RESET}\n")
     result = call_api(endpoint, 'debug', {
         'error': args.error or '',
         'stack_trace': args.stack_trace or '',
@@ -222,11 +405,55 @@ def cmd_debug(args, endpoint: str):
     print_debug(result)
 
 
-# ─── Main ────────────────────────────────────────────────────────────────────
+def cmd_review(args, endpoint: str):
+    """
+    Trigger the /review endpoint.
+    Supports:
+      --diff path/to/changes.diff  — send a local diff file
+      --repo owner/repo --pr N     — construct a minimal GitHub webhook payload
+    """
+    # Read diff file or use GitHub payload mode
+    if hasattr(args, 'diff') and args.diff:
+        diff_text = Path(args.diff).read_text()
+        # Wrap diff as a simulated webhook payload with the diff embedded
+        payload = {
+            'action': 'opened',
+            'pull_request': {
+                'number': getattr(args, 'pr', 0) or 0,
+                'head': {'sha': 'local-diff'},
+                # We pass the diff inline — the reviewer will handle empty diff_url gracefully
+                'diff_url': '',
+                '_local_diff': diff_text,
+            },
+            'repository': {'full_name': getattr(args, 'repo', '') or 'local/local'},
+        }
+    elif hasattr(args, 'repo') and args.repo and hasattr(args, 'pr') and args.pr:
+        payload = {
+            'action': 'opened',
+            'pull_request': {
+                'number': args.pr,
+                'head': {'sha': 'api-triggered'},
+                'diff_url': f'https://github.com/{args.repo}/pull/{args.pr}.diff',
+            },
+            'repository': {'full_name': args.repo},
+        }
+    else:
+        print(f"{RED}Error: provide --diff <file> or --repo owner/repo --pr N{RESET}")
+        sys.exit(1)
+
+    print(f"  {GREY}Submitting PR review …{RESET}\n")
+    result = call_api(endpoint, 'review', payload)
+    if 'error' in result:
+        print(f"{RED}Error: {result['error']}{RESET}")
+        sys.exit(1)
+    print_review(result)
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
         prog='neurotidy',
-        description='NeuroTidy — AI-powered Python & DL Code Analyzer',
+        description='NeuroTidy — AI-powered Python & DL Code Analyzer + GitHub PR Review Bot',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""
         Examples:
@@ -234,6 +461,8 @@ def main():
           python neurotidy.py analyze model.py
           python neurotidy.py optimize train.py
           python neurotidy.py debug --error "RuntimeError: mat1 and mat2 shapes cannot be multiplied"
+          python neurotidy.py review --diff changes.diff
+          python neurotidy.py review --repo myorg/myrepo --pr 42
         """)
     )
     parser.add_argument('--endpoint', help='API endpoint URL (overrides config.env)')
@@ -264,22 +493,33 @@ def main():
     p_debug.add_argument('--error', help='Error message string')
     p_debug.add_argument('--stack-trace', help='Full stack trace text')
 
+    # review
+    p_review = subparsers.add_parser('review', help='Submit a PR for AI code review (GitHub PR bot)')
+    p_review_src = p_review.add_mutually_exclusive_group()
+    p_review_src.add_argument('--diff', help='Path to a .diff file to review locally')
+    p_review.add_argument('--repo', help='GitHub repo (owner/repo) for live PR review')
+    p_review.add_argument('--pr', type=int, help='Pull Request number for live review')
+
     args = parser.parse_args()
 
     print_banner()
 
     endpoint = args.endpoint or load_config()
     if not endpoint:
-        print(f"{RED}❌ No API endpoint configured!{RESET}")
-        print(f"\nSet NEUROTIDY_API_ENDPOINT in config.env or export it as an environment variable:")
-        print(f"  {YELLOW}export NEUROTIDY_API_ENDPOINT=https://your-api.execute-api.us-east-1.amazonaws.com/prod{RESET}")
+        print(f"{ROSE}{BOLD}  ✗  No API endpoint configured{RESET}")
+        print()
+        print(f"  {GREY}Set {WHITE}NEUROTIDY_API_ENDPOINT{GREY} in config.env or export it:{RESET}")
+        print()
+        print(f"  {DIM}export NEUROTIDY_API_ENDPOINT=https://your-api.execute-api.us-east-1.amazonaws.com/prod{RESET}")
+        print()
         sys.exit(1)
 
     dispatch = {
-        'explain': cmd_explain,
-        'analyze': cmd_analyze,
+        'explain':  cmd_explain,
+        'analyze':  cmd_analyze,
         'optimize': cmd_optimize,
-        'debug': cmd_debug,
+        'debug':    cmd_debug,
+        'review':   cmd_review,
     }
     dispatch[args.command](args, endpoint)
 

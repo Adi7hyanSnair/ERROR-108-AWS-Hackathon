@@ -1,18 +1,43 @@
 """
-Bug Explainer component for NeuroTidy.
-Analyzes Python errors and stack traces using Amazon Bedrock.
+bug_explainer.py — NeuroTidy error analysis component.
+
+Analyses Python errors and stack traces using Amazon Bedrock (Claude).
+Integrates with bedrock_utils for:
+  - Exponential-backoff retries on Bedrock throttling
+  - DynamoDB code-hash response caching
 """
 
 import json
-import ast
+import os
 import re
 from typing import Optional
+
+from bedrock_utils import (
+    call_bedrock_with_retry,
+    get_cached_result,
+    hash_code,
+    put_cached_result,
+)
+
+# Configurable from Lambda environment — no hard-coded values
+MAX_TOKENS = int(os.environ.get("BEDROCK_MAX_TOKENS", "2000"))
+TEMPERATURE = float(os.environ.get("BEDROCK_TEMPERATURE", "0.1"))
+TOP_P = float(os.environ.get("BEDROCK_TOP_P", "0.9"))
+CACHE_TTL = int(os.environ.get("CACHE_TTL_SECONDS", "86400"))
+
+_SYSTEM_PROMPT = (
+    "You are NeuroTidy, an expert Python debugging assistant specialising in helping "
+    "students and junior developers understand and fix errors. "
+    "You are especially knowledgeable about Deep Learning frameworks (PyTorch, TensorFlow, JAX). "
+    "Always respond with valid, parseable JSON — no markdown fences, no extra prose."
+)
 
 
 class BugExplainer:
     """
-    Analyzes Python error messages and stack traces to produce
+    Analyses Python error messages and stack traces to produce
     human-friendly explanations with root-cause analysis and fix suggestions.
+    Results are cached in DynamoDB by (error_hash, action) to skip redundant Bedrock calls.
     """
 
     COMMON_ERRORS = {
@@ -43,30 +68,79 @@ class BugExplainer:
         "RuntimeError: stack": "Tensors being stacked have different shapes.",
     }
 
-    def __init__(self, bedrock_client, model_id: str):
+    def __init__(self, bedrock_client, model_id: str, dynamodb_table=None):
+        """
+        Args:
+            bedrock_client:  boto3 bedrock-runtime client
+            model_id:        Bedrock model ID (read from env, never hardcoded here)
+            dynamodb_table:  DynamoDB Table resource for caching (optional)
+        """
         self.bedrock_client = bedrock_client
         self.model_id = model_id
+        self.table = dynamodb_table
 
-    def explain_error(self, error_msg: str, stack_trace: str = "", code: str = "") -> dict:
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def explain_error(
+        self,
+        error_msg: str,
+        stack_trace: str = "",
+        code: str = "",
+    ) -> dict:
         """
-        Explain a Python error with root cause analysis and suggested fixes.
+        Explain a Python error with root-cause analysis and suggested fixes.
 
         Args:
-            error_msg: The error message string (e.g. "NameError: name 'x' is not defined")
+            error_msg:   The error message string (e.g. "NameError: name 'x' is not defined")
             stack_trace: Full stack trace text (optional)
-            code: The Python source code that caused the error (optional)
+            code:        Python source code that caused the error (optional)
 
         Returns:
-            dict with keys: error_type, root_cause, faulty_lines,
-                            explanation, learning_tips, suggested_fixes, ai_explanation
+            dict with keys: error_type, original_error, root_cause, faulty_lines,
+                            explanation (from AI), learning_tips, suggested_fixes,
+                            is_dl_error, confidence_level, related_concepts
         """
         error_type = self._extract_error_type(error_msg)
         faulty_lines = self._identify_faulty_lines(stack_trace)
         quick_desc = self._get_quick_description(error_msg, error_type)
+        is_dl = self._is_dl_error(error_msg, stack_trace)
 
-        # Build AI prompt
-        prompt = self._build_prompt(error_msg, stack_trace, code, error_type)
-        ai_explanation = self._call_bedrock(prompt)
+        # Cache key is derived from the combined error context
+        cache_input = f"{error_msg}::{stack_trace}::{code}"
+        cache_key = hash_code(cache_input, "debug")
+        ai_explanation: dict = {}
+
+        # 1. Check DynamoDB cache
+        if self.table:
+            cached = get_cached_result(self.table, cache_key, "debug")
+            if cached:
+                ai_explanation = cached.get("ai_explanation", {})
+
+        # 2. Call Bedrock if not cached
+        if not ai_explanation and self.bedrock_client:
+            prompt = self._build_prompt(error_msg, stack_trace, code, error_type, is_dl)
+            raw_text = call_bedrock_with_retry(
+                self.bedrock_client,
+                self.model_id,
+                prompt,
+                max_tokens=MAX_TOKENS,
+                temperature=TEMPERATURE,
+                top_p=TOP_P,
+                system_prompt=_SYSTEM_PROMPT,
+            )
+            ai_explanation = self._parse_ai_response(raw_text)
+
+            # 3. Write to cache (best-effort)
+            if self.table:
+                put_cached_result(
+                    self.table,
+                    cache_key,
+                    "debug",
+                    {"ai_explanation": ai_explanation},
+                    ttl_seconds=CACHE_TTL,
+                )
 
         return {
             "error_type": error_type,
@@ -76,19 +150,22 @@ class BugExplainer:
             "explanation": ai_explanation,
             "learning_tips": self._get_learning_tips(error_type),
             "suggested_fixes": self._get_suggested_fixes(error_type, error_msg),
-            "is_dl_error": self._is_dl_error(error_msg, stack_trace),
+            "is_dl_error": is_dl,
+            "confidence_level": ai_explanation.get("confidence_level", "medium"),
+            "related_concepts": ai_explanation.get("related_concepts", []),
         }
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Private helpers
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------
 
     def _extract_error_type(self, error_msg: str) -> str:
         """Extract error class name from message."""
-        match = re.match(r'^(\w+(?:Error|Exception|Warning|StopIteration|SystemExit))', error_msg)
+        match = re.match(
+            r"^(\w+(?:Error|Exception|Warning|StopIteration|SystemExit))", error_msg
+        )
         if match:
             return match.group(1)
-        # Handle "RuntimeError: CUDA …"
         if "RuntimeError" in error_msg:
             return "RuntimeError"
         return "UnknownError"
@@ -97,13 +174,11 @@ class BugExplainer:
         """Extract line numbers referenced in a stack trace."""
         if not stack_trace:
             return []
-        pattern = r'File ".*?", line (\d+)'
-        matches = re.findall(pattern, stack_trace)
+        matches = re.findall(r'File ".*?", line (\d+)', stack_trace)
         return [int(m) for m in matches]
 
     def _get_quick_description(self, error_msg: str, error_type: str) -> str:
-        """Return a one-sentence root-cause description."""
-        # Check DL-specific patterns first
+        """Return a one-sentence root-cause description from the local lookup table."""
         for pattern, desc in self.COMMON_ERRORS.items():
             if pattern in error_msg:
                 return desc
@@ -114,7 +189,8 @@ class BugExplainer:
         dl_keywords = [
             "torch", "tensorflow", "cuda", "tensor", "gradient",
             "backward", "device", "cuda:0", "RuntimeError: mat1",
-            "RuntimeError: Expected", "RuntimeError: size mismatch"
+            "RuntimeError: Expected", "RuntimeError: size mismatch",
+            "jax", "keras", "autograd", "nn.Module",
         ]
         combined = (error_msg + " " + stack_trace).lower()
         return any(kw.lower() in combined for kw in dl_keywords)
@@ -152,6 +228,16 @@ class BugExplainer:
                 "Check if you're using the correct virtual environment.",
                 "Verify the package name (e.g. 'sklearn' is installed as 'scikit-learn').",
             ],
+            "AttributeError": [
+                "Use dir(object) to inspect available attributes and methods.",
+                "Check for None values before calling methods on objects.",
+                "Verify the object type matches what you expect.",
+            ],
+            "ValueError": [
+                "Validate input data before passing it to functions.",
+                "Check function documentation for valid value ranges.",
+                "Add assertions to catch invalid values early in your code.",
+            ],
         }
         return tips.get(error_type, [
             "Read the full error message carefully — it usually tells you exactly what's wrong.",
@@ -187,20 +273,38 @@ class BugExplainer:
                 "Run: pip install <module_name>",
                 "Activate your virtual environment first: source venv/bin/activate",
             ],
+            "AttributeError": [
+                "Check spelling: use dir(object) to list available attributes.",
+                "Guard against None: if obj is not None: obj.method()",
+            ],
+            "ValueError": [
+                "Validate inputs before passing them to the function.",
+                "Check the function's documentation for expected value ranges.",
+            ],
         }
-        if error_type in fixes:
-            return fixes[error_type]
-        return ["Add debugging print statements to trace the issue.", "Read the full stack trace carefully."]
+        return fixes.get(error_type, [
+            "Add debugging print statements to trace the issue.",
+            "Read the full stack trace carefully.",
+        ])
 
-    def _build_prompt(self, error_msg: str, stack_trace: str, code: str, error_type: str) -> str:
-        """Build detailed prompt for Bedrock."""
-        is_dl = self._is_dl_error(error_msg, stack_trace)
-        dl_note = "\nNote: This appears to be a Deep Learning / PyTorch / TensorFlow error. Include tensor shape analysis and device placement tips." if is_dl else ""
+    def _build_prompt(
+        self,
+        error_msg: str,
+        stack_trace: str,
+        code: str,
+        error_type: str,
+        is_dl: bool,
+    ) -> str:
+        """Build an enhanced, richly-structured debug prompt for Bedrock."""
+        dl_note = (
+            "\n⚠️  DL/ML CONTEXT: This appears to be a Deep Learning error "
+            "(PyTorch / TensorFlow / JAX). Include tensor shape analysis, "
+            "device placement tips, and gradient-related guidance where relevant."
+            if is_dl else ""
+        )
 
-        prompt = f"""You are NeuroTidy, an expert Python debugging assistant for students and developers.
+        return f"""Analyse this Python error and return a JSON object (no markdown, no prose outside JSON).
 {dl_note}
-
-Analyze this Python error and provide a clear, educational explanation:
 
 ERROR MESSAGE:
 {error_msg}
@@ -213,48 +317,33 @@ CODE:
 {code if code else "(not provided)"}
 ```
 
-Provide your response in this EXACT JSON format:
+Return EXACTLY this JSON schema — all fields are required:
 {{
   "simple_explanation": "One sentence explaining what went wrong in plain English",
-  "detailed_explanation": "2-3 paragraphs explaining the root cause and how Python handles this",
-  "step_by_step_fix": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
-  "example_fix": "Show corrected code if possible",
-  "prevention_tip": "One tip to avoid this error in the future"
-}}
-"""
-        return prompt
+  "detailed_explanation": "2-3 paragraphs: root cause, why Python raises this, how execution reaches it",
+  "step_by_step_fix": [
+    "Step 1: ...",
+    "Step 2: ...",
+    "Step 3: ..."
+  ],
+  "example_fix": "Show corrected code snippet if the original code was provided, else show a generic fix pattern",
+  "prevention_tip": "One actionable tip to avoid this error class in the future",
+  "confidence_level": "high | medium | low — how confident you are in the root-cause diagnosis",
+  "related_concepts": ["concept_1", "concept_2"]
+}}"""
 
-    def _call_bedrock(self, prompt: str) -> dict:
-        """Call Amazon Bedrock and return parsed response."""
+    def _parse_ai_response(self, raw_text: str) -> dict:
+        """Parse the AI JSON response, with graceful fallback."""
         try:
-            request_body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 1500,
-                "temperature": 0.1,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-
-            response = self.bedrock_client.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps(request_body)
-            )
-
-            response_body = json.loads(response['body'].read())
-            text = response_body['content'][0]['text']
-
-            # Try to parse JSON response
-            try:
-                # Find JSON block in response
-                json_match = re.search(r'\{.*\}', text, re.DOTALL)
-                if json_match:
-                    return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-
-            return {"simple_explanation": text}
-
-        except Exception as e:
-            return {
-                "simple_explanation": f"Could not get AI explanation: {str(e)}",
-                "details": "Check your Bedrock model access and AWS credentials."
-            }
+            # Prefer a clean JSON block
+            json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+        # Fallback: return raw text under simple_explanation
+        return {
+            "simple_explanation": raw_text,
+            "confidence_level": "low",
+            "related_concepts": [],
+        }
