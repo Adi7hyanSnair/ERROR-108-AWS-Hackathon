@@ -1,6 +1,6 @@
 # NeuroTidy — AI-Powered Python Code Analyzer
 
-> **AWS Hackathon 2024** · Powered by **Amazon Bedrock** (Claude 3.5 Haiku)
+> **AWS Hackathon 2025** · Powered by **Amazon Bedrock**
 
 NeuroTidy explains, analyzes, optimizes, debugs your Python & Deep Learning code — and reviews your GitHub PRs — all serverless on AWS.
 
