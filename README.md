@@ -1,246 +1,103 @@
-# 🧠 NeuroTidy — AI-Powered Python Code Analyzer
+# NeuroTidy — AI-Powered Python Code Analyzer
 
-> **AWS Hackathon 2024** · Powered by **Amazon Bedrock**
+> **AWS Hackathon 2025** · Powered by **Amazon Bedrock**
 
-NeuroTidy explains, analyzes, optimizes, and debugs your Python & Deep Learning code — serverless on AWS.
+NeuroTidy explains, analyzes, optimizes, debugs your Python & Deep Learning code — and reviews your GitHub PRs — all serverless on AWS.
 
 ---
 
-## ✨ Features
+## Endpoints
 
 | Mode | Endpoint | Description |
 |------|----------|-------------|
-| 📖 **Explain** | `POST /explain` | Multi-level code explanations (beginner → advanced) |
-| 🔍 **Analyze** | `POST /analyze` | 17+ static analysis rules + ML-specific patterns |
-| ⚡ **Optimize** | `POST /optimize` | DL performance optimizer (PyTorch / TensorFlow) |
-| 🐛 **Debug** | `POST /debug` | Root-cause error analysis with step-by-step fixes |
+| **Explain** | `POST /explain` | Multi-level code explanations (beginner → advanced) with 5-section Markdown output |
+| **Analyze** | `POST /analyze` | 17+ static analysis rules + ML-specific anti-pattern detection |
+| **Optimize** | `POST /optimize` | DL performance optimizer (PyTorch / TensorFlow) with RAG-enhanced analysis |
+| **Debug** | `POST /debug` | Root-cause error analysis with step-by-step fixes + `confidence_level` |
+| **Review** | `POST /review` | 🤖 GitHub PR Review Bot — auto-analyses pull requests and posts inline comments |
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
-### Step 1 — Fill in `config.env`
-
-Open **`config.env`** in the project root and fill in:
-
+### 1. Configure
+Edit `config.env` and fill in:
 ```env
-AWS_ACCESS_KEY_ID=AKIA...
+AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_ACCOUNT_ID=123456789012
-AWS_REGION=us-east-1
-
-# Pick a Bedrock model (must enable it in AWS Console first):
-BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0
+AWS_ACCOUNT_ID=...
+GITHUB_TOKEN=ghp_...         # For /review endpoint
+GITHUB_WEBHOOK_SECRET=...    # Generate: python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-> 💡 See the **Model Selection** section below for all available models.
-
-### Step 2 — Enable Bedrock Model Access
-
-1. Open [AWS Bedrock Console](https://console.aws.amazon.com/bedrock)
-2. Go to **Model Access** → Request access to Claude 3 Sonnet (or your chosen model)
-3. Wait ~1 min for activation
-
-### Step 3 — Deploy
-
+### 2. Deploy
 ```powershell
-# Windows (PowerShell)
-cd infrastructure
-.\deploy.ps1
+.\infrastructure\deploy.ps1
+# The API URL is printed at the end — paste it into config.env as NEUROTIDY_API_ENDPOINT
 ```
 
+### 3. Test locally (no AWS needed)
 ```bash
-# Linux / Mac
-cd infrastructure
-./deploy.sh
+python tests/test_local.py         # 68 tests
+python tests/test_github_review.py # 50 tests
 ```
 
-The script prints your API URLs at the end. Copy the `BaseApiUrl` value.
-
-### Step 4 — Update `config.env` with the API URL
-
-```env
-NEUROTIDY_API_ENDPOINT=https://abc123.execute-api.us-east-1.amazonaws.com/prod
-```
-
-### Step 5 — Test it!
-
+### 4. Test deployed API
 ```powershell
-# PowerShell
-cd tests
-.\test_api.ps1
+.\tests\test_api.ps1   # 8 end-to-end tests against live endpoints
 ```
+
+---
+
+## CLI Usage
 
 ```bash
-# Linux/Mac
-cd tests
-./test_api.sh https://your-api-url/prod
-```
-
----
-
-## 🔑 Model Selection (config.env)
-
-Uncomment exactly ONE model in `config.env`:
-
-| Model | ID | Speed | Quality | Cost |
-|-------|----|-------|---------|------|
-| **Claude 3 Sonnet** ✅ (default) | `anthropic.claude-3-sonnet-20240229-v1:0` | Fast | Excellent | Medium |
-| Claude 3 Haiku | `anthropic.claude-3-haiku-20240307-v1:0` | Fastest | Good | Lowest |
-| Claude 3 Opus | `anthropic.claude-3-opus-20240229-v1:0` | Slow | Best | Highest |
-| Llama 3 70B | `meta.llama3-70b-instruct-v1:0` | Medium | Very Good | Low |
-| Llama 3 8B | `meta.llama3-8b-instruct-v1:0` | Fastest | Good | Lowest |
-| Mistral Large | `mistral.mistral-large-2402-v1:0` | Fast | Very Good | Medium |
-
----
-
-## 📁 Project Structure
-
-```
-ERROR-108-AWS-Hackathon/
-│
-├── config.env               ← ⭐ YOUR CREDENTIALS & SETTINGS (edit this!)
-├── config.example.env       ← Template (safe to commit)
-│
-├── lambda/                  ← AWS Lambda source code
-│   ├── handler.py           ← Main router (4 endpoints)
-│   ├── code_explainer.py    ← Code explanation via Bedrock
-│   ├── bug_explainer.py     ← Error & stack trace analysis
-│   ├── dl_optimizer.py      ← DL performance rule engine
-│   ├── static_analyzer.py   ← Python static analysis (17 rules)
-│   └── requirements.txt     ← Lambda dependencies (boto3)
-│
-├── infrastructure/
-│   ├── template.yaml        ← SAM/CloudFormation template
-│   ├── deploy.ps1           ← Windows deploy script
-│   └── deploy.sh            ← Linux/Mac deploy script
-│
-├── cli/
-│   └── neurotidy.py         ← Command-line interface
-│
-├── frontend/
-│   ├── index.html           ← Web UI
-│   ├── style.css            ← Premium dark design
-│   └── app.js               ← Frontend API integration
-│
-└── tests/
-    ├── test_local.py        ← Unit tests (no AWS needed)
-    ├── test_api.ps1         ← PowerShell API tests
-    ├── test_api.sh          ← Bash API tests
-    └── sample_code.py       ← Sample ML code
-```
-
----
-
-## 🖥️ CLI Usage
-
-```bash
-# Install deps (only for CLI, not Lambda)
-pip install requests
-
-# Explain code
-python cli/neurotidy.py explain myfile.py --mode beginner
-python cli/neurotidy.py explain myfile.py --mode advanced
-
-# Analyze code quality
-python cli/neurotidy.py analyze myfile.py
-
-# Find DL optimizations
+python cli/neurotidy.py explain  train.py --mode beginner
+python cli/neurotidy.py analyze  model.py
 python cli/neurotidy.py optimize train.py
-
-# Debug an error
-python cli/neurotidy.py debug --error "RuntimeError: mat1 shapes cannot be multiplied"
-python cli/neurotidy.py debug myfile.py --error "NameError: name 'model' is not defined"
+python cli/neurotidy.py debug    --error "NameError: name 'x' is not defined"
+python cli/neurotidy.py review   --diff changes.diff
+python cli/neurotidy.py review   --repo myorg/myrepo --pr 42
 ```
 
 ---
 
-## 🌐 API Reference
+## GitHub PR Review Bot Setup
 
-All endpoints accept `POST` with `Content-Type: application/json`.
+1. Deploy (step 2 above)
+2. In GitHub → **Settings → Webhooks → Add webhook**
+   - Payload URL: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod/review`
+   - Content type: `application/json`
+   - Secret: your `GITHUB_WEBHOOK_SECRET`
+   - Events: ✅ Pull requests
 
-### `POST /explain`
-```json
-{
-  "code": "def add(a, b): return a + b",
-  "mode": "beginner"
-}
+The bot will automatically analyse every opened/updated PR and post inline review comments with severity badges and fix suggestions.
+
+---
+
+## Architecture
+
 ```
-`mode` options: `beginner` | `intermediate` | `advanced`
-
-### `POST /analyze`
-```json
-{
-  "code": "...",
-  "use_ai": true
-}
-```
-
-### `POST /optimize`
-```json
-{
-  "code": "import torch\nfor batch in loader:\n    ...",
-  "use_ai": true
-}
-```
-
-### `POST /debug`
-```json
-{
-  "error": "NameError: name 'x' is not defined",
-  "stack_trace": "File train.py line 14...",
-  "code": "optional source code"
-}
+Developer → curl/CLI/GitHub Webhook
+              ↓
+         API Gateway  (5 routes)
+              ↓
+         Lambda Function  (handler.py)
+         ├─ /explain   → CodeExplainer  + Bedrock (cached)
+         ├─ /analyze   → StaticAnalyzer + Bedrock
+         ├─ /optimize  → RAGOptimizer   + Bedrock KB + DLOptimizer
+         ├─ /debug     → BugExplainer   + Bedrock (cached)
+         └─ /review    → GitHubReviewer + StaticAnalyzer + Bedrock
+              ↓                ↓
+         DynamoDB cache    S3 (raw results)
 ```
 
 ---
 
-## 🧪 Local Tests (No AWS Required)
+## Key Features
 
-```bash
-python tests/test_local.py
-```
-
-Runs 20 unit tests on the static analyzer, DL optimizer, and bug explainer — no credentials needed.
-
----
-
-## 🏗️ Architecture
-
-```
-User → API Gateway → Lambda → Amazon Bedrock (Claude / Llama / Mistral)
-                           → S3 (store results)
-                           → DynamoDB (cache metadata)
-```
-
-- **Lambda**: Python 3.11, 512 MB, 60s timeout
-- **API Gateway**: 4 POST routes + CORS
-- **S3**: Results stored for 30 days (configurable)
-- **DynamoDB**: Metadata with 24h TTL (configurable)
-
----
-
-## 💡 Static Analysis Rules
-
-| Rule | Severity | Description |
-|------|----------|-------------|
-| PY001 | LOW | Missing function docstring |
-| PY004 | HIGH | Bare `except:` clause |
-| PY005 | HIGH | Mutable default argument |
-| PY009 | MEDIUM | `== None` instead of `is None` |
-| NT007 | HIGH | Missing `optimizer.zero_grad()` |
-| NT008 | HIGH | `CrossEntropyLoss` + `sigmoid` mismatch |
-| NT005 | LOW | Missing `pin_memory=True` in DataLoader |
-| NT006 | MEDIUM | Missing `num_workers` in DataLoader |
-| NT017 | MEDIUM | No random seed set |
-| NT019 | MEDIUM | Saving full model instead of `state_dict()` |
-| … | … | 17+ rules total |
-
----
-
-## 🔒 Security
-
-- `config.env` is in `.gitignore` — **never committed**
-- All code stays in your own AWS account
-- Lambda IAM role has least-privilege permissions
-- No API keys are exposed in the codebase
+- **Exponential backoff** — auto-retries Bedrock on throttle errors (configurable via env vars)  
+- **DynamoDB caching** — SHA-256 code-hash key, 24h TTL — identical code never hits Bedrock twice  
+- **GitHub PR bot** — HMAC-SHA256 webhook validation, per-file diff parsing, inline review comments  
+- **Zero hardcoded values** — all config via environment variables  
+- **118 local unit tests** — run without AWS credentials
