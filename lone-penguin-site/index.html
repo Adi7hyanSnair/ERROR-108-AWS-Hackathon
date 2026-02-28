@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroTidy</title>
+    <!-- Google Fonts for typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Montserrat:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="brand-logo">
+                <img src="../Assets/image.png" alt="NeuroTidy Logo" class="brand-img-round">
+                <span class="brand-text">NeuroTidy</span>
+            </a>
+
+            <ul class="nav-menu">
+                <li class="nav-item"><a href="#about" class="nav-link">About Us</a></li>
+                <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
+                <li class="nav-item"><a href="#contact" class="nav-link btn-download">Download</a></li>
+            </ul>
+
+            <div class="auth-group">
+                <a href="#contact" class="auth-link sign-in">Sign In</a>
+                <a href="#contact" class="auth-btn sign-up">Sign Up</a>
+            </div>
+
+            <!-- Mobile Menu Toggle -->
+            <div class="hamburger">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero" id="home">
+        <!-- Background Video -->
+        <div class="video-container">
+            <video autoplay loop muted playsinline id="bg-video">
+                <source src="../Assets/Penguin Video.mp4" type="video/mp4">
+            </video>
+        </div>
+
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1 class="hero-title">Debug Smarter <span class="highlight">Build Faster</span></h1>
+            <p class="hero-subtitle">NeuroTidy explains ML & Deep Learning errors in plain language, 
+                suggests fixes, and helps you debug <br>
+                faster — without wasting hours on Stack Overflow.</p>
+            <div class="hero-cta-group">
+            </div>
+        </div>
+
+        <!-- Scroll indicator -->
+        <div class="scroll-indicator">
+            <span class="mouse">
+                <span class="wheel"></span>
+            </span>
+            <span class="scroll-text">Scroll Down</span>
+        </div>
+    </header>
+
+    <!-- About Section Placeholder -->
+    <section class="section about" id="about">
+        <div class="container">
+            <div class="split-layout">
+                <div class="content-side">
+                    <span class="section-tag">The Philosophy</span>
+                    <h2 class="section-title">Crystal Clear Focus</h2>
+                    <p class="section-text">Lone Penguin provides a refreshing, structured space that functions like a
+                        breath
+                        of crisp Antarctic air for your brain. Regain control and navigate your tasks with unmatched
+                        precision.</p>
+                    <a href="#contact" class="link-arrow">Explore Features <svg viewBox="0 0 24 24" width="20"
+                            height="20" stroke="currentColor" stroke-width="2" fill="none">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg></a>
+                </div>
+                <div class="image-side">
+                    <!-- Placeholder for elegant bottle image -->
+                    <div class="image-placeholder bottle-showcase"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Adding padding so scrolling works for the anchor tags -->
+    <section class="section" id="contact"
+        style="min-height: 80vh; background: #1a1e24; display: flex; align-items: center; justify-content: center;">
+        <div class="container" style="text-align: center;">
+            <h2 class="section-title">Get In Touch</h2>
+            <p class="section-text" style="max-width: 600px; margin: 0 auto;">Have questions about our methodology or
+                platform? We're here to help you achieve absolute mental clarity.</p>
+            <a href="mailto:hello@lonepenguin.app" class="btn btn-primary"
+                style="margin-top: 30px; display: inline-block;">Contact Support</a>
+        </div>
+    </section>
+
+    <script src="js/main.js"></script>
+</body>
+
+</html>
