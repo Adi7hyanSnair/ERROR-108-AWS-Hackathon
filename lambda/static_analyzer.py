@@ -39,6 +39,12 @@ class StaticAnalyzer:
         "NT018": ("torch.tensor() used where torch.as_tensor() would avoid copy", "LOW", "performance"),
         "NT019": ("Model saved without state_dict (saving full model)", "MEDIUM", "best-practice"),
         "NT020": ("DataLoader batch_size not configurable (hardcoded)", "LOW", "ml-practice"),
+        "NT021": ("Missing dropout layer in deep network", "MEDIUM", "ml-practice"),
+        "NT022": ("BatchNorm used without proper training/eval mode switching", "HIGH", "bug"),
+        "NT023": ("Learning rate not decayed during training", "LOW", "ml-practice"),
+        "NT024": ("No validation set used during training", "MEDIUM", "ml-practice"),
+        "NT025": ("Model weights not initialized properly", "MEDIUM", "ml-practice"),
+        "NT026": ("Missing early stopping mechanism", "LOW", "ml-practice"),
         "NT027": ("Gradient accumulation without zero_grad at right step", "HIGH", "bug"),
     }
 
@@ -139,6 +145,11 @@ class StaticAnalyzer:
             if re.search(r'==\s*True|==\s*False|True\s*==|False\s*==', line):
                 violations.append(self._make_violation("PY010", i, snippet=line.strip()))
 
+        # PY006 – print() instead of logging
+        for i, line in enumerate(lines, 1):
+            if re.search(r'\bprint\s*\(', line) and 'def ' not in line:
+                violations.append(self._make_violation("PY006", i, snippet=line.strip()))
+
         # NT017 – no random seed
         has_seed = any(kw in code for kw in [
             'random.seed', 'torch.manual_seed', 'np.random.seed',
@@ -154,6 +165,89 @@ class StaticAnalyzer:
                 if 'torch.save' in line:
                     violations.append(self._make_violation("NT019", i, snippet=line.strip()))
                     break
+
+        # NT015 – model not set to training mode
+        has_training = any(kw in code for kw in ['optimizer', 'loss.backward', 'criterion'])
+        has_train_mode = 'model.train()' in code or '.train()' in code
+        if has_training and not has_train_mode:
+            violations.append(self._make_violation("NT015", 0,
+                detail="Training code detected but model.train() not called."))
+
+        # NT016 – hardcoded learning rate
+        for i, line in enumerate(lines, 1):
+            if re.search(r'lr\s*=\s*0\.\d+|learning_rate\s*=\s*0\.\d+', line):
+                if 'optim.' in code and not re.search(r'lr\s*=\s*\w+|learning_rate\s*=\s*\w+', line):
+                    violations.append(self._make_violation("NT016", i, snippet=line.strip()))
+                    break
+
+        # NT018 – torch.tensor() instead of torch.as_tensor()
+        for i, line in enumerate(lines, 1):
+            if 'torch.tensor(' in line and 'torch.as_tensor' not in code:
+                violations.append(self._make_violation("NT018", i, snippet=line.strip()))
+                break
+
+        # NT020 – hardcoded batch_size in DataLoader
+        for i, line in enumerate(lines, 1):
+            if 'DataLoader' in line and re.search(r'batch_size\s*=\s*\d+', line):
+                violations.append(self._make_violation("NT020", i, snippet=line.strip()))
+                break
+
+        # NT021 – missing dropout in deep network
+        has_multiple_layers = code.count('nn.Linear') > 2 or code.count('nn.Conv') > 2
+        has_dropout = 'nn.Dropout' in code or 'dropout' in code.lower()
+        if has_multiple_layers and not has_dropout:
+            violations.append(self._make_violation("NT021", 0,
+                detail="Deep network detected without dropout layers for regularization."))
+
+        # NT022 – BatchNorm without proper mode switching
+        if 'BatchNorm' in code:
+            has_eval = '.eval()' in code
+            has_train = '.train()' in code
+            if not (has_eval and has_train):
+                violations.append(self._make_violation("NT022", 0,
+                    detail="BatchNorm used but model.train()/model.eval() not properly called."))
+
+        # NT023 – no learning rate decay
+        has_optimizer = 'optimizer' in code.lower()
+        has_lr_scheduler = any(kw in code for kw in ['scheduler', 'StepLR', 'ReduceLROnPlateau', 'lr_scheduler'])
+        if has_optimizer and 'epoch' in code and not has_lr_scheduler:
+            violations.append(self._make_violation("NT023", 0,
+                detail="Training loop detected without learning rate scheduler."))
+
+        # NT024 – no validation set
+        has_training_loop = any(kw in code for kw in ['for epoch', 'optimizer.step', 'loss.backward'])
+        has_validation = any(kw in code for kw in ['valid', 'val_', 'validation', 'evaluate'])
+        if has_training_loop and not has_validation:
+            violations.append(self._make_violation("NT024", 0,
+                detail="Training loop without validation set monitoring."))
+
+        # NT025 – weights not initialized
+        has_model_class = 'nn.Module' in code
+        has_init_weights = any(kw in code for kw in ['init.', 'kaiming', 'xavier', 'normal_', 'uniform_'])
+        if has_model_class and not has_init_weights:
+            violations.append(self._make_violation("NT025", 0,
+                detail="Model class without explicit weight initialization."))
+
+        # NT026 – missing early stopping
+        has_long_training = 'epochs' in code and any(str(i) in code for i in range(50, 1000))
+        has_early_stop = 'early' in code.lower() and 'stop' in code.lower()
+        if has_long_training and not has_early_stop:
+            violations.append(self._make_violation("NT026", 0,
+                detail="Long training detected without early stopping mechanism."))
+
+        # NT027 – gradient accumulation without proper zero_grad
+        if 'accumulation' in code.lower() or 'accum_steps' in code:
+            has_conditional_zero_grad = re.search(r'if.*zero_grad|zero_grad.*if', code)
+            if not has_conditional_zero_grad:
+                violations.append(self._make_violation("NT027", 0,
+                    detail="Gradient accumulation detected without conditional zero_grad()."))
+
+        # NT014 – missing loss logging
+        has_loss_backward = 'loss.backward()' in code
+        has_logging = any(kw in code for kw in ['print', 'logger', 'wandb', 'tensorboard', 'log'])
+        if has_loss_backward and not has_logging:
+            violations.append(self._make_violation("NT014", 0,
+                detail="Training loop without explicit loss logging."))
 
         return violations
 
