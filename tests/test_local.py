@@ -66,6 +66,30 @@ test("Detects PY009 (== None)", 'PY009' in rule_ids)
 syntax_err = analyzer.analyze("def broken(:\n    pass", use_ai=False)
 test("Handles syntax error gracefully", 'error' in syntax_err)
 
+# PY006 – print() instead of logging (NEW TEST)
+print_code = "def process():\n    print('Processing data')\n    return True"
+result = analyzer.analyze(print_code, use_ai=False)
+rule_ids = [v['rule_id'] for v in result['violations']]
+test("Detects PY006 (print instead of logging)", 'PY006' in rule_ids)
+
+# NT015 – missing model.train() (NEW TEST)
+no_train_mode = "optimizer = torch.optim.Adam(model.parameters())\nloss.backward()\noptimizer.step()"
+result = analyzer.analyze(no_train_mode, use_ai=False)
+rule_ids = [v['rule_id'] for v in result['violations']]
+test("Detects NT015 (missing model.train)", 'NT015' in rule_ids)
+
+# NT021 – missing dropout in deep network (NEW TEST)
+deep_no_dropout = "class Net(nn.Module):\n    def __init__(self):\n        self.fc1 = nn.Linear(10, 20)\n        self.fc2 = nn.Linear(20, 30)\n        self.fc3 = nn.Linear(30, 10)"
+result = analyzer.analyze(deep_no_dropout, use_ai=False)
+rule_ids = [v['rule_id'] for v in result['violations']]
+test("Detects NT021 (missing dropout)", 'NT021' in rule_ids)
+
+# NT024 – no validation set (NEW TEST)
+no_validation = "for epoch in range(100):\n    optimizer.step()\n    loss.backward()"
+result = analyzer.analyze(no_validation, use_ai=False)
+rule_ids = [v['rule_id'] for v in result['violations']]
+test("Detects NT024 (no validation set)", 'NT024' in rule_ids)
+
 # ─── DLOptimizer Tests ──────────────────────────────────
 print("\n--- DL Optimizer ---")
 optimizer = DLOptimizer()
@@ -92,6 +116,12 @@ test("Detects NT008 (sigmoid + CrossEntropyLoss)", 'NT008' in rule_ids)
 # DL code detection
 test("Detects DL code", optimizer._is_dl_code("import torch; model = nn.Module()"))
 test("Non-DL code not flagged", not optimizer._is_dl_code("x = 1 + 2"))
+
+# NT010 – missing mixed precision (NEW TEST)
+no_amp = "model.train()\nfor data in loader:\n    output = model(data.cuda())\n    loss.backward()\n    optimizer.step()"
+result = optimizer.analyze(no_amp, use_ai=False)
+rule_ids = [v['rule_id'] for v in result['violations']]
+test("Detects NT010 (missing mixed precision)", 'NT010' in rule_ids)
 
 # ─── BugExplainer Tests ──────────────────────────────────
 print("\n--- Bug Explainer ---")
