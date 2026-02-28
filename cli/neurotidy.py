@@ -7,6 +7,8 @@ Usage:
   python neurotidy.py analyze myfile.py
   python neurotidy.py optimize myfile.py
   python neurotidy.py debug --error "NameError: name 'x' is not defined"
+  python neurotidy.py review --diff path/to/changes.diff
+  python neurotidy.py review --repo owner/repo --pr 42
 """
 
 import argparse
@@ -78,9 +80,11 @@ def _h(text: str, color: str = CYAN) -> str:
 
 def print_banner():
     print(f"""
-{CYAN}╔══════════════════════════════════════╗
-║   NeuroTidy — AI Code Analyzer v1.0  ║
-╚══════════════════════════════════════╝{RESET}
+{CYAN}╔══════════════════════════════════════════════╗
+║   NeuroTidy — AI Code Analyzer v1.1          ║
+║   Endpoints: /explain /analyze /optimize     ║
+║              /debug /review (PR bot)        ║
+╚══════════════════════════════════════════════╝{RESET}
 """)
 
 
@@ -166,6 +170,19 @@ def print_debug(result: dict):
     print()
 
 
+def print_review(result: dict):
+    print(_h("🔍 PR Review Report"))
+    print(f"  Status:         {GREEN}{result.get('status', '')}{RESET}")
+    print(f"  PR Number:      #{result.get('pr_number', '?')}")
+    print(f"  Repo:           {result.get('repo', '')}")
+    print(f"  Files reviewed: {result.get('files_reviewed', 0)}")
+    print(f"  Comments posted:{result.get('comments_posted', 0)}")
+    reason = result.get('reason', '')
+    if reason:
+        print(f"  Note:           {YELLOW}{reason}{RESET}")
+    print()
+
+
 # ─── Commands ───────────────────────────────────────────────────────────────
 def cmd_explain(args, endpoint: str):
     code = Path(args.file).read_text() if args.file else args.code
@@ -222,11 +239,55 @@ def cmd_debug(args, endpoint: str):
     print_debug(result)
 
 
+def cmd_review(args, endpoint: str):
+    """
+    Trigger the /review endpoint.
+    Supports:
+      --diff path/to/changes.diff  — send a local diff file
+      --repo owner/repo --pr N     — construct a minimal GitHub webhook payload
+    """
+    # Read diff file or use GitHub payload mode
+    if hasattr(args, 'diff') and args.diff:
+        diff_text = Path(args.diff).read_text()
+        # Wrap diff as a simulated webhook payload with the diff embedded
+        payload = {
+            'action': 'opened',
+            'pull_request': {
+                'number': getattr(args, 'pr', 0) or 0,
+                'head': {'sha': 'local-diff'},
+                # We pass the diff inline — the reviewer will handle empty diff_url gracefully
+                'diff_url': '',
+                '_local_diff': diff_text,
+            },
+            'repository': {'full_name': getattr(args, 'repo', '') or 'local/local'},
+        }
+    elif hasattr(args, 'repo') and args.repo and hasattr(args, 'pr') and args.pr:
+        payload = {
+            'action': 'opened',
+            'pull_request': {
+                'number': args.pr,
+                'head': {'sha': 'api-triggered'},
+                'diff_url': f'https://github.com/{args.repo}/pull/{args.pr}.diff',
+            },
+            'repository': {'full_name': args.repo},
+        }
+    else:
+        print(f"{RED}Error: provide --diff <file> or --repo owner/repo --pr N{RESET}")
+        sys.exit(1)
+
+    print(f"  Submitting PR review…\n")
+    result = call_api(endpoint, 'review', payload)
+    if 'error' in result:
+        print(f"{RED}Error: {result['error']}{RESET}")
+        sys.exit(1)
+    print_review(result)
+
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
         prog='neurotidy',
-        description='NeuroTidy — AI-powered Python & DL Code Analyzer',
+        description='NeuroTidy — AI-powered Python & DL Code Analyzer + GitHub PR Review Bot',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""
         Examples:
@@ -234,6 +295,8 @@ def main():
           python neurotidy.py analyze model.py
           python neurotidy.py optimize train.py
           python neurotidy.py debug --error "RuntimeError: mat1 and mat2 shapes cannot be multiplied"
+          python neurotidy.py review --diff changes.diff
+          python neurotidy.py review --repo myorg/myrepo --pr 42
         """)
     )
     parser.add_argument('--endpoint', help='API endpoint URL (overrides config.env)')
@@ -264,6 +327,13 @@ def main():
     p_debug.add_argument('--error', help='Error message string')
     p_debug.add_argument('--stack-trace', help='Full stack trace text')
 
+    # review
+    p_review = subparsers.add_parser('review', help='Submit a PR for AI code review (GitHub PR bot)')
+    p_review_src = p_review.add_mutually_exclusive_group()
+    p_review_src.add_argument('--diff', help='Path to a .diff file to review locally')
+    p_review.add_argument('--repo', help='GitHub repo (owner/repo) for live PR review')
+    p_review.add_argument('--pr', type=int, help='Pull Request number for live review')
+
     args = parser.parse_args()
 
     print_banner()
@@ -280,6 +350,7 @@ def main():
         'analyze': cmd_analyze,
         'optimize': cmd_optimize,
         'debug': cmd_debug,
+        'review': cmd_review,
     }
     dispatch[args.command](args, endpoint)
 
