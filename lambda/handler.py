@@ -27,7 +27,7 @@ bedrock_agent_client = boto3.client('bedrock-agent-runtime', region_name=REGION)
 # ─── Environment Variables (set in config.env → template.yaml → Lambda env) ─
 S3_BUCKET = os.environ.get('S3_BUCKET', 'neurotidy-results')
 DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE', 'neurotidy-cache')
-BEDROCK_MODEL_ID = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
+BEDROCK_MODEL_ID = os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-3-5-haiku-20241022-v1:0')
 KNOWLEDGE_BASE_ID = os.environ.get('KNOWLEDGE_BASE_ID', '')  # Optional: Bedrock Knowledge Base ID
 CACHE_TTL = int(os.environ.get('CACHE_TTL_SECONDS', '86400'))
 
