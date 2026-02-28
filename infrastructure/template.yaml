@@ -1,19 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: NeuroTidy AWS — AI-Powered Python Code Analyzer (4 endpoints)
+Description: NeuroTidy AWS — AI-Powered Python Code Analyzer (5 endpoints incl. GitHub PR Review)
 
 Parameters:
   BedrockModelId:
     Type: String
-    Default: anthropic.claude-3-sonnet-20240229-v1:0
-    Description: Amazon Bedrock model ID (must be enabled in your AWS account)
-    AllowedValues:
-      - anthropic.claude-3-sonnet-20240229-v1:0
-      - anthropic.claude-3-haiku-20240307-v1:0
-      - anthropic.claude-3-opus-20240229-v1:0
-      - meta.llama3-70b-instruct-v1:0
-      - meta.llama3-8b-instruct-v1:0
-      - mistral.mistral-large-2402-v1:0
+    Default: us.anthropic.claude-3-5-haiku-20241022-v1:0
+    Description: Amazon Bedrock model ID (cross-region inference profile ID)
 
   CacheTtlSeconds:
     Type: Number
@@ -24,6 +17,28 @@ Parameters:
     Type: Number
     Default: 30
     Description: How many days to keep analysis results in S3.
+
+  GithubToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: GitHub Personal Access Token (repo + pull_requests scope). Leave empty to disable PR review.
+
+  GithubWebhookSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: GitHub webhook secret for HMAC-SHA256 signature validation.
+
+  BedrockMaxRetries:
+    Type: Number
+    Default: 5
+    Description: Maximum number of Bedrock retry attempts on throttle errors.
+
+  BedrockRetryBaseDelaySec:
+    Type: String
+    Default: '1.0'
+    Description: Base delay (seconds) for exponential backoff retries.
 
 Resources:
   # ─── S3 Bucket ───────────────────────────────────────────
@@ -48,9 +63,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: analysis_id
           AttributeType: S
+        - AttributeName: code_hash
+          AttributeType: S
       KeySchema:
         - AttributeName: analysis_id
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: code_hash-index
+          KeySchema:
+            - AttributeName: code_hash
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         Enabled: true
         AttributeName: ttl
@@ -83,11 +107,22 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:Query
-                Resource: !GetAtt MetadataTable.Arn
+                Resource:
+                  - !GetAtt MetadataTable.Arn
+                  - !Sub '${MetadataTable.Arn}/index/*'
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
-                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}'
+                  - bedrock:InvokeModelWithResponseStream
+                # Allow any foundation model or cross-region inference profile
+                Resource:
+                  - !Sub 'arn:aws:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*'
+              - Effect: Allow
+                Action:
+                  - bedrock-agent-runtime:Retrieve
+                  - bedrock-agent-runtime:RetrieveAndGenerate
+                Resource: '*'
 
   # ─── Lambda Function ─────────────────────────────────────
   AnalyzerFunction:
@@ -97,7 +132,7 @@ Resources:
       CodeUri: ../lambda/
       Handler: handler.lambda_handler
       Runtime: python3.11
-      Timeout: 60
+      Timeout: 90
       MemorySize: 512
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
@@ -106,7 +141,14 @@ Resources:
           DYNAMODB_TABLE: !Ref MetadataTable
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           CACHE_TTL_SECONDS: !Ref CacheTtlSeconds
-          AWS_REGION_NAME: !Ref AWS::Region
+          GITHUB_TOKEN: !Ref GithubToken
+          GITHUB_WEBHOOK_SECRET: !Ref GithubWebhookSecret
+          BEDROCK_MAX_RETRIES: !Ref BedrockMaxRetries
+          BEDROCK_RETRY_BASE_DELAY_SEC: !Ref BedrockRetryBaseDelaySec
+          BEDROCK_MAX_TOKENS: '2000'
+          BEDROCK_TEMPERATURE: '0.1'
+          BEDROCK_TOP_P: '0.9'
+          LOG_LEVEL: INFO
       Events:
         # Endpoint 1: Code Explanation
         ExplainEvent:
@@ -136,6 +178,13 @@ Resources:
             Path: /debug
             Method: POST
             RestApiId: !Ref ApiGateway
+        # Endpoint 5: GitHub PR Review Bot
+        ReviewEvent:
+          Type: Api
+          Properties:
+            Path: /review
+            Method: POST
+            RestApiId: !Ref ApiGateway
         # CORS preflight for all routes
         CorsOptions:
           Type: Api
@@ -152,7 +201,7 @@ Resources:
       StageName: prod
       Cors:
         AllowOrigin: "'*'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Hub-Signature-256,X-GitHub-Event'"
         AllowMethods: "'POST,OPTIONS'"
 
 Outputs:
@@ -172,6 +221,10 @@ Outputs:
     Description: Bug debugger endpoint
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/debug'
 
+  ReviewEndpoint:
+    Description: GitHub PR review bot webhook endpoint
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/review'
+
   BaseApiUrl:
     Description: Base API URL (set this as NEUROTIDY_API_ENDPOINT in config.env)
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
@@ -187,4 +240,3 @@ Outputs:
   LambdaFunction:
     Description: Lambda function ARN
     Value: !GetAtt AnalyzerFunction.Arn
-

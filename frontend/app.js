@@ -28,7 +28,7 @@ function setMode(mode) {
   document.getElementById('opts-explain').classList.toggle('hidden', mode !== 'explain');
   document.getElementById('opts-debug').classList.toggle('hidden', mode !== 'debug');
   // Update button label
-  const labels = { explain: '📖 Explain Code', analyze: '🔍 Analyze Code', optimize: '⚡ Optimize Code', debug: '🐛 Debug Error' };
+  const labels = { explain: '📖 Explain Code', analyze: '🔍 Analyze Code', optimize: '⚡ Optimize Code', debug: '🐛 Debug Error', review: '🔍 Review PR' };
   document.getElementById('runBtnText').textContent = labels[mode] || '🚀 Run';
   // Clear results
   document.getElementById('resultPanel').classList.add('hidden');
@@ -97,20 +97,21 @@ async function runAnalysis() {
 // ─── Render Results ───────────────────────────────────────
 function renderResult(data) {
   const panel = document.getElementById('resultPanel');
-  const body  = document.getElementById('resultBody');
+  const body = document.getElementById('resultBody');
   const title = document.getElementById('resultTitle');
-  const idEl  = document.getElementById('resultId');
+  const idEl = document.getElementById('resultId');
 
   panel.classList.remove('hidden');
   idEl.textContent = `ID: ${data.analysis_id || ''}`;
 
-  const titles = { explain: '📖 Explanation', analyze: '🔍 Static Analysis', optimize: '⚡ DL Optimization', debug: '🐛 Bug Report' };
+  const titles = { explain: '📖 Explanation', analyze: '🔍 Static Analysis', optimize: '⚡ DL Optimization', debug: '🐛 Bug Report', review: '🔍 PR Review Report' };
   title.textContent = titles[currentMode] || 'Result';
 
-  if (currentMode === 'explain')  body.innerHTML = renderExplain(data);
-  if (currentMode === 'analyze')  body.innerHTML = renderAnalyze(data);
+  if (currentMode === 'explain') body.innerHTML = renderExplain(data);
+  if (currentMode === 'analyze') body.innerHTML = renderAnalyze(data);
   if (currentMode === 'optimize') body.innerHTML = renderOptimize(data);
-  if (currentMode === 'debug')    body.innerHTML = renderDebug(data);
+  if (currentMode === 'debug') body.innerHTML = renderDebug(data);
+  if (currentMode === 'review') body.innerHTML = renderReview(data);
 
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -194,9 +195,37 @@ function renderDebug(data) {
     html += `<div class="ai-insights-box">
       <h4>🤖 AI Explanation</h4>
       <p style="font-size:14px;color:var(--text);margin-bottom:10px">${escHtml(exp.simple_explanation)}</p>
-      ${(exp.step_by_step_fix || []).map((s, i) => `<div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">${i+1}. ${escHtml(s)}</div>`).join('')}
+      ${(exp.step_by_step_fix || []).map((s, i) => `<div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">${i + 1}. ${escHtml(s)}</div>`).join('')}
     </div>`;
   }
+  return html;
+}
+
+function renderReview(data) {
+  const status = data.status || 'unknown';
+  const statusColor = status === 'reviewed' ? 'var(--accent3)' : status === 'error' ? 'var(--danger)' : 'var(--text-muted)';
+  let html = `
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">Status</div>
+      <div style="font-size:17px;font-weight:700;color:${statusColor}">${escHtml(status)}</div>
+    </div>`;
+  if (data.pr_number) {
+    html += `<div style="margin-bottom:12px">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">Pull Request</div>
+      <div style="font-size:15px">PR #${data.pr_number} in <code>${escHtml(data.repo || '')}</code></div>
+    </div>`;
+  }
+  if (data.files_reviewed !== undefined) {
+    html += `<div class="metrics-row">
+      <div class="metric-chip">Files reviewed: <span>${data.files_reviewed}</span></div>
+      <div class="metric-chip">Comments posted: <span>${data.comments_posted}</span></div>
+    </div>`;
+  }
+  if (data.reason) {
+    html += `<div style="color:var(--text-muted);font-size:14px;margin-top:12px">ℹ️ ${escHtml(data.reason)}</div>`;
+  }
+  html += `<div style="margin-top:20px;padding:12px;background:var(--card-bg);border-radius:8px;font-size:13px;color:var(--text-muted)">`;
+  html += `<strong>💡 PR Review Bot Setup:</strong> Configure <code>GITHUB_TOKEN</code> and <code>GITHUB_WEBHOOK_SECRET</code> in <code>config.env</code>, then point your GitHub repo webhook to <code>/review</code>.</div>`;
   return html;
 }
 
@@ -293,7 +322,24 @@ for epoch in range(100):
         optimizer.step()`,
 
     debug: `model = SimpleNet(784, 256, 10)
-optimizer = torch.optim.Adam(model.parameters())`
+optimizer = torch.optim.Adam(model.parameters())`,
+
+    review: `diff --git a/train.py b/train.py
+--- a/train.py
++++ b/train.py
+@@ -0,0 +1,10 @@
++import torch
++from torch.utils.data import DataLoader
++
++def train(model, dataset):
++    loader = DataLoader(dataset, batch_size=32)
++    optimizer = torch.optim.Adam(model.parameters())
++    for epoch in range(100):
++        for data, labels in loader:
++            output = model(data)
++            loss = criterion(output, labels)
++            loss.backward()
++            optimizer.step()`
   };
 
   document.getElementById('codeInput').value = samples[currentMode] || samples.explain;
