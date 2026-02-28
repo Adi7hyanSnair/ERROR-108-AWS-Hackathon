@@ -1,0 +1,165 @@
+{
+  "rules": [
+    {
+      "rule_id": "NT007",
+      "name": "Missing optimizer.zero_grad()",
+      "severity": "HIGH",
+      "category": "training-loop",
+      "description": "Gradients accumulate by default in PyTorch. Without calling zero_grad(), gradients from previous batches add up, causing incorrect weight updates.",
+      "why_it_matters": "This causes the model to receive wrong gradient signals, leading to poor convergence or divergence. The model may not learn properly or may become unstable.",
+      "detection_pattern": "Training loop with backward() and optimizer.step() but no zero_grad()",
+      "code_features": ["training_loop", "backward", "optimizer_step", "no_zero_grad"],
+      "bad_example": "for batch in loader:\n    output = model(data)\n    loss = criterion(output, target)\n    loss.backward()\n    optimizer.step()",
+      "good_example": "for batch in loader:\n    optimizer.zero_grad()\n    output = model(data)\n    loss = criterion(output, target)\n    loss.backward()\n    optimizer.step()",
+      "skill_level_advice": {
+        "beginner": "Always call optimizer.zero_grad() at the start of each training iteration before loss.backward(). This clears old gradients.",
+        "intermediate": "Call zero_grad() before backward() to clear accumulated gradients, or implement gradient accumulation intentionally by calling zero_grad() every N steps.",
+        "expert": "For gradient accumulation, call zero_grad() every accumulation_steps iterations. Consider using gradient checkpointing for memory efficiency."
+      },
+      "performance_impact": "Critical - causes training failure",
+      "fix_difficulty": "Easy",
+      "related_rules": ["NT027"]
+    },
+    {
+      "rule_id": "NT010",
+      "name": "Missing mixed precision training",
+      "severity": "LOW",
+      "category": "performance",
+      "description": "Mixed precision training uses FP16 for faster computation and FP32 for numerical stability. Modern GPUs have Tensor Cores optimized for FP16 operations.",
+      "why_it_matters": "Can provide 2x training speedup and 50% memory reduction on compatible GPUs without sacrificing model accuracy.",
+      "detection_pattern": "CUDA training without torch.cuda.amp.autocast or GradScaler",
+      "code_features": ["cuda", "training_loop", "no_amp", "no_gradscaler"],
+      "bad_example": "for data in loader:\n    data = data.cuda()\n    output = model(data)\n    loss.backward()",
+      "good_example": "scaler = GradScaler()\nfor data in loader:\n    with autocast():\n        output = model(data.cuda())\n        loss = criterion(output, target)\n    scaler.scale(loss).backward()\n    scaler.step(optimizer)\n    scaler.update()",
+      "skill_level_advice": {
+        "beginner": "Not recommended yet - focus on getting your model working correctly first. Learn this after mastering basic training loops.",
+        "intermediate": "Consider using torch.cuda.amp for 2x faster training. Start with autocast() context manager and GradScaler. Test that accuracy doesn't degrade.",
+        "expert": "Implement mixed precision with torch.cuda.amp.autocast() and GradScaler. Profile with torch.profiler to verify speedup. Consider custom FP16/FP32 casting for specific layers if needed."
+      },
+      "performance_impact": "High - 2x speedup, 50% memory reduction",
+      "fix_difficulty": "Medium",
+      "prerequisites": ["CUDA GPU", "PyTorch 1.6+"],
+      "related_rules": ["NT005", "NT006"]
+    },
+    {
+      "rule_id": "NT013",
+      "name": "Missing gradient clipping for RNN/LSTM",
+      "severity": "LOW",
+      "category": "training-stability",
+      "description": "RNNs and LSTMs are prone to exploding gradients due to repeated multiplication through time steps. Gradient clipping prevents this.",
+      "why_it_matters": "Without clipping, gradients can explode to infinity, causing NaN losses and training failure. This is especially common in sequence models.",
+      "detection_pattern": "LSTM/GRU/RNN model without clip_grad_norm or clip_grad_value",
+      "code_features": ["lstm", "gru", "rnn", "no_gradient_clipping"],
+      "bad_example": "lstm = nn.LSTM(100, 256)\nfor data, target in loader:\n    output, _ = lstm(data)\n    loss.backward()\n    optimizer.step()",
+      "good_example": "lstm = nn.LSTM(100, 256)\nfor data, target in loader:\n    output, _ = lstm(data)\n    loss.backward()\n    torch.nn.utils.clip_grad_norm_(lstm.parameters(), max_norm=1.0)\n    optimizer.step()",
+      "skill_level_advice": {
+        "beginner": "Add gradient clipping after loss.backward() and before optimizer.step(). Use max_norm=1.0 as a safe default for LSTM models.",
+        "intermediate": "Use clip_grad_norm_(model.parameters(), max_norm=1.0) for RNNs. Experiment with max_norm values (0.5-5.0). Monitor gradient norms during training.",
+        "expert": "Implement adaptive gradient clipping. Monitor gradient norms with hooks. Consider using clip_grad_value_ for per-parameter clipping. Profile to find optimal max_norm."
+      },
+      "performance_impact": "Critical for RNN stability",
+      "fix_difficulty": "Easy",
+      "related_rules": ["NT007"]
+    },
+    {
+      "rule_id": "NT005",
+      "name": "Missing pin_memory in DataLoader",
+      "severity": "LOW",
+      "category": "performance",
+      "description": "pin_memory=True enables faster data transfer from CPU to GPU by using pinned (page-locked) memory.",
+      "why_it_matters": "Can speed up data loading by 2-3x when transferring data to GPU. Especially important for large datasets.",
+      "detection_pattern": "DataLoader without pin_memory=True when using CUDA",
+      "code_features": ["dataloader", "no_pin_memory", "cuda"],
+      "bad_example": "loader = DataLoader(dataset, batch_size=32)",
+      "good_example": "loader = DataLoader(dataset, batch_size=32, pin_memory=True, num_workers=4)",
+      "skill_level_advice": {
+        "beginner": "Add pin_memory=True to your DataLoader if you're using GPU. This makes data transfer faster.",
+        "intermediate": "Use pin_memory=True with num_workers>0 for optimal GPU data transfer. Combine with prefetch_factor for better pipelining.",
+        "expert": "Enable pin_memory=True, set num_workers=4-8, persistent_workers=True, and prefetch_factor=2. Profile data loading bottlenecks with torch.profiler."
+      },
+      "performance_impact": "Medium - 2-3x faster data transfer",
+      "fix_difficulty": "Easy",
+      "related_rules": ["NT006"]
+    },
+    {
+      "rule_id": "NT006",
+      "name": "Missing num_workers in DataLoader",
+      "severity": "MEDIUM",
+      "category": "performance",
+      "description": "num_workers enables parallel data loading using multiple CPU processes, preventing data loading from becoming a bottleneck.",
+      "why_it_matters": "Single-threaded data loading can bottleneck GPU training. Multiple workers load data in parallel while GPU processes previous batch.",
+      "detection_pattern": "DataLoader without num_workers or num_workers=0",
+      "code_features": ["dataloader", "no_num_workers"],
+      "bad_example": "loader = DataLoader(dataset, batch_size=32)",
+      "good_example": "loader = DataLoader(dataset, batch_size=32, num_workers=4, pin_memory=True)",
+      "skill_level_advice": {
+        "beginner": "Add num_workers=4 to your DataLoader to load data faster. Start with 4 and adjust based on your CPU cores.",
+        "intermediate": "Set num_workers=4-8 depending on CPU cores. Use persistent_workers=True to avoid worker respawning overhead. Monitor CPU usage.",
+        "expert": "Optimize num_workers based on CPU cores and I/O speed. Use persistent_workers=True, prefetch_factor=2. Profile with torch.profiler to find optimal value."
+      },
+      "performance_impact": "High - 3-5x faster data loading",
+      "fix_difficulty": "Easy",
+      "related_rules": ["NT005"]
+    },
+    {
+      "rule_id": "NT015",
+      "name": "Model not set to training mode",
+      "severity": "MEDIUM",
+      "category": "training-correctness",
+      "description": "Models with Dropout or BatchNorm layers behave differently in training vs evaluation mode. Must call model.train() before training.",
+      "why_it_matters": "Without model.train(), Dropout is disabled and BatchNorm uses running statistics instead of batch statistics, causing silent training failures.",
+      "detection_pattern": "Training loop without model.train() call",
+      "code_features": ["training_loop", "optimizer", "no_model_train"],
+      "bad_example": "model = MyModel()\nfor epoch in range(10):\n    for data in loader:\n        output = model(data)\n        loss.backward()",
+      "good_example": "model = MyModel()\nmodel.train()\nfor epoch in range(10):\n    for data in loader:\n        output = model(data)\n        loss.backward()",
+      "skill_level_advice": {
+        "beginner": "Always call model.train() before your training loop. This ensures Dropout and BatchNorm work correctly during training.",
+        "intermediate": "Call model.train() before training and model.eval() before validation/testing. Check model.training flag if needed.",
+        "expert": "Use model.train() and model.eval() appropriately. Consider context managers for automatic mode switching. Be aware of custom layers that may need mode handling."
+      },
+      "performance_impact": "Critical - causes silent training failure",
+      "fix_difficulty": "Easy",
+      "related_rules": ["NT022"]
+    },
+    {
+      "rule_id": "NT017",
+      "name": "No random seed set",
+      "severity": "MEDIUM",
+      "category": "reproducibility",
+      "description": "Without setting random seeds, results vary between runs, making debugging impossible and research non-reproducible.",
+      "why_it_matters": "Reproducibility is essential for debugging, research papers, and production systems. Different seeds can cause 5-10% accuracy variation.",
+      "detection_pattern": "Training code without seed setting calls",
+      "code_features": ["training_loop", "no_seed"],
+      "bad_example": "model = MyModel()\ntrain(model)",
+      "good_example": "torch.manual_seed(42)\nnp.random.seed(42)\nrandom.seed(42)\ntorch.backends.cudnn.deterministic = True\nmodel = MyModel()\ntrain(model)",
+      "skill_level_advice": {
+        "beginner": "Add these lines at the start of your script: torch.manual_seed(42), np.random.seed(42), random.seed(42). This makes results reproducible.",
+        "intermediate": "Set all random seeds (torch, numpy, random, cuda). Use torch.backends.cudnn.deterministic=True for full reproducibility. Document seed in experiments.",
+        "expert": "Set seeds for torch, numpy, random, CUDA. Enable cudnn.deterministic and cudnn.benchmark=False for reproducibility. Consider seed_everything() utility. Trade-off: deterministic mode is slower."
+      },
+      "performance_impact": "None - but essential for reproducibility",
+      "fix_difficulty": "Easy",
+      "related_rules": []
+    },
+    {
+      "rule_id": "NT024",
+      "name": "No validation set used",
+      "severity": "MEDIUM",
+      "category": "training-best-practice",
+      "description": "Training without a validation set makes it impossible to detect overfitting or tune hyperparameters properly.",
+      "why_it_matters": "You can't know if your model generalizes or just memorizes training data. Validation loss is essential for early stopping and hyperparameter tuning.",
+      "detection_pattern": "Training loop without validation evaluation",
+      "code_features": ["training_loop", "no_validation"],
+      "bad_example": "for epoch in range(100):\n    train_loss = train_epoch(model)\n    print(f'Train loss: {train_loss}')",
+      "good_example": "for epoch in range(100):\n    train_loss = train_epoch(model, train_loader)\n    val_loss = validate(model, val_loader)\n    print(f'Train: {train_loss}, Val: {val_loss}')\n    if val_loss < best_val_loss:\n        save_checkpoint(model)",
+      "skill_level_advice": {
+        "beginner": "Split your data into train (80%) and validation (20%) sets. Check validation loss every epoch to see if your model is overfitting.",
+        "intermediate": "Use train/val/test split (70/15/15). Monitor validation metrics. Implement early stopping based on validation loss. Use validation for hyperparameter tuning.",
+        "expert": "Implement k-fold cross-validation for robust evaluation. Use validation for model selection and hyperparameter optimization. Consider stratified splits for imbalanced data."
+      },
+      "performance_impact": "Critical for model quality",
+      "fix_difficulty": "Medium",
+      "related_rules": ["NT026"]
+    }
+  ]
+}

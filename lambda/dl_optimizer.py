@@ -100,6 +100,8 @@ class DLOptimizer:
         violations += self._check_dataloader(tree, code)
         violations += self._check_inside_loop(tree, code)
         violations += self._check_loss_mismatch(code)
+        violations += self._check_mixed_precision(code)
+        violations += self._check_gradient_clipping(tree, code)
 
         return violations
 
@@ -160,6 +162,27 @@ class DLOptimizer:
         results = []
         if 'CrossEntropyLoss' in code and ('sigmoid' in code or 'Sigmoid' in code):
             results.append(self._make_violation("NT008", 0))
+        return results
+
+    def _check_mixed_precision(self, code: str) -> List[dict]:
+        """NT010: Check for missing mixed precision training."""
+        results = []
+        has_training = any(kw in code for kw in ['optimizer.step', 'loss.backward', 'model.train'])
+        has_cuda = 'cuda' in code or '.to(device)' in code or 'gpu' in code.lower()
+        has_amp = 'autocast' in code or 'GradScaler' in code or 'torch.cuda.amp' in code
+        
+        if has_training and has_cuda and not has_amp:
+            results.append(self._make_violation("NT010", 0))
+        return results
+
+    def _check_gradient_clipping(self, tree: ast.AST, code: str) -> List[dict]:
+        """NT013: Check for missing gradient clipping in RNN/LSTM."""
+        results = []
+        has_rnn = any(kw in code for kw in ['LSTM', 'GRU', 'RNN', 'nn.LSTM', 'nn.GRU', 'nn.RNN'])
+        has_clipping = 'clip_grad' in code or 'clip_grad_norm' in code or 'clip_grad_value' in code
+        
+        if has_rnn and not has_clipping:
+            results.append(self._make_violation("NT013", 0))
         return results
 
     def _is_dl_code(self, code: str) -> bool:
