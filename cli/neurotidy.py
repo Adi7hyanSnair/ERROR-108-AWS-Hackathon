@@ -7,7 +7,7 @@ Usage:
   python neurotidy.py analyze myfile.py
   python neurotidy.py optimize myfile.py
   python neurotidy.py debug --error "NameError: name 'x' is not defined"
-  
+  ssdsdad
   python neurotidy.py review --diff path/to/changes.diff
   python neurotidy.py review --repo owner/repo --pr 42
 """
