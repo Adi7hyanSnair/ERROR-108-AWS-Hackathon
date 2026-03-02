@@ -63,47 +63,40 @@ def call_bedrock_with_retry(
     system_prompt: Optional[str] = None,
 ) -> str:
     """
-    Invoke an Anthropic Claude model via Amazon Bedrock with automatic
-    exponential-backoff retries on throttling / transient errors.
+    Invoke a model via the Amazon Bedrock Converse API with automatic
+    exponential-backoff retries. This is model-agnostic.
 
     Args:
         bedrock_client: boto3 bedrock-runtime client
-        model_id:       Bedrock model ID (e.g. us.anthropic.claude-3-5-haiku-20241022-v1:0)
+        model_id:       Bedrock model ID
         prompt:         User message text
         max_tokens:     Max response tokens
-        temperature:    Sampling temperature (0 = deterministic)
-        top_p:          Nucleus sampling probability
-        system_prompt:  Optional system-level instruction
+        temperature:    Sampling temperature
+        top_p:          Top-p sampling
+        system_prompt:  Optional system instruction
 
     Returns:
         The text content of the model response.
-
-    Raises:
-        RuntimeError: if all retries are exhausted or a non-retryable error occurs.
     """
-    messages = [{"role": "user", "content": prompt}]
-
-    request_body: dict = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": max_tokens,
+    system = [{"text": system_prompt}] if system_prompt else []
+    messages = [{"role": "user", "content": [{"text": prompt}]}]
+    
+    inference_config = {
+        "maxTokens": max_tokens,
         "temperature": temperature,
-        "top_p": top_p,
-        "messages": messages,
+        "topP": top_p,
     }
-    if system_prompt:
-        request_body["system"] = system_prompt
 
     last_error: Optional[Exception] = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = bedrock_client.invoke_model(
+            response = bedrock_client.converse(
                 modelId=model_id,
-                body=json.dumps(request_body),
-                contentType="application/json",
-                accept="application/json",
+                messages=messages,
+                system=system,
+                inferenceConfig=inference_config
             )
-            body = json.loads(response["body"].read())
-            return body["content"][0]["text"]
+            return response["output"]["message"]["content"][0]["text"]
 
         except ClientError as exc:
             error_code = exc.response["Error"]["Code"]
@@ -118,19 +111,13 @@ def call_bedrock_with_retry(
             else:
                 logger.error("Non-retryable Bedrock error: %s", exc)
                 raise
-
-        except Exception as exc:  # network errors, etc.
+        except Exception as exc:
             delay = min(RETRY_BASE_DELAY * (2 ** (attempt - 1)), RETRY_MAX_DELAY)
-            logger.warning(
-                "Unexpected Bedrock error on attempt %d/%d (%s) — retrying in %.1fs",
-                attempt, MAX_RETRIES, exc, delay,
-            )
+            logger.warning("Unexpected error on attempt %d/%d: %s", attempt, MAX_RETRIES, exc)
             time.sleep(delay)
             last_error = exc
 
-    raise RuntimeError(
-        f"Bedrock call failed after {MAX_RETRIES} retries. Last error: {last_error}"
-    )
+    raise RuntimeError(f"Bedrock failed after {MAX_RETRIES} retries. Last: {last_error}")
 
 
 # ---------------------------------------------------------------------------

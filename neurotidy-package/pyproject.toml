@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neurotidy"
+version = "0.1.0"
+description = "AI-Powered Python & Deep Learning Code Analyzer — Explain, Analyze, Optimize, and Debug your code"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "ERROR-108 Team"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.scripts]
+neurotidy = "neurotidy.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Adi7hyanSnair/ERROR-108-AWS-Hackathon"
+Issues = "https://github.com/Adi7hyanSnair/ERROR-108-AWS-Hackathon/issues"

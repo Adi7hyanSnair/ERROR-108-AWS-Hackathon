@@ -24,15 +24,11 @@
             </a>
 
             <ul class="nav-menu">
+                <li class="nav-item"><a href="#features" class="nav-link">Features</a></li>
                 <li class="nav-item"><a href="#about" class="nav-link">About Us</a></li>
                 <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
-                <li class="nav-item"><a href="#contact" class="nav-link btn-download">Download</a></li>
+                <li class="nav-item"><a href="download.html" class="nav-link btn-download">Download</a></li>
             </ul>
-
-            <div class="auth-group">
-                <a href="#contact" class="auth-link sign-in">Sign In</a>
-                <a href="#contact" class="auth-btn sign-up">Sign Up</a>
-            </div>
 
             <!-- Mobile Menu Toggle -->
             <div class="hamburger">
@@ -55,7 +51,7 @@
         <div class="hero-overlay"></div>
         <div class="hero-content">
             <h1 class="hero-title">Debug Smarter <span class="highlight">Build Faster</span></h1>
-            <p class="hero-subtitle">NeuroTidy explains ML & Deep Learning errors in plain language, 
+            <p class="hero-subtitle">NeuroTidy explains ML & Deep Learning errors in plain language,
                 suggests fixes, and helps you debug <br>
                 faster — without wasting hours on Stack Overflow.</p>
             <div class="hero-cta-group">
@@ -71,19 +67,261 @@
         </div>
     </header>
 
+    <!-- Features Showcase -->
+    <section class="section" id="features" style="text-align:center;">
+        <div class="container">
+            <h2 class="section-title"
+                style="font-size: clamp(2.5rem, 4vw, 3.5rem); font-weight: 700; max-width: 900px; margin: 0 auto; line-height: 1.1;">
+                Cut code review time & bugs in half Instantly.</h2>
+            <p class="section-text"
+                style="font-family: monospace; font-size: 1.1rem; margin-top: 20px; color: var(--text-light); max-width: 700px; margin-inline: auto;">
+                Reviews for AI-powered teams who move fast (but don't break things)</p>
+
+            <div class="cta-wrapper" style="margin-top: 30px; margin-bottom: 70px;">
+                <a href="download.html" class="btn-premium">
+                    Try it for free
+                    <span class="btn-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="3"
+                            fill="none">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </span>
+                </a>
+                <div class="install-row">
+                    <div class="install-icons">
+                        <svg class="icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path
+                                d="M22.68 14.37h-.01a.34.34 0 0 0-.29-.12.35.35 0 0 0-.27.12l-1.39 1.41-1.4-1.41a.36.36 0 0 0-.54 0 .34.34 0 0 0 0 .5l1.66 1.67c.15.15.39.15.54 0l1.67-1.67a.34.34 0 0 0 .03-.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+                            <path
+                                d="M12 16.5c.3 0 .5-.2.5-.5V8.5c0-.3-.2-.5-.5-.5s-.5.2-.5.5V16c0 .3.2.5.5.5zM15.5 13c.3 0 .5-.2.5-.5s-.2-.5-.5-.5h-7c-.3 0-.5.2-.5.5s.2.5.5.5h7z" />
+                        </svg>
+                        <!-- GitHub Icon -->
+                        <svg class="icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path
+                                d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+                        </svg>
+                        <span class="separator">|</span>
+                        <!-- CLI/Terminal Icon -->
+                        <svg class="icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor"
+                            stroke-width="2" fill="none">
+                            <polyline points="4 17 10 11 4 5"></polyline>
+                            <line x1="12" y1="19" x2="20" y2="19"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="features-grid">
+                <!-- Card 1 -->
+                <div class="feature-card">
+                    <h3 class="feature-card-title">Automated GitHub PR Reviews</h3>
+                    <p class="feature-card-text">Get instant feedback on every PR with AI-generated summaries and
+                        line-by-line violation reports directly in your repository.</p>
+                    <div class="feature-mockup">
+                        <div class="mockup-header">
+                            <img src="../Assets/image.png" class="mockup-logo" alt="NeuroTidy">
+                            <span class="mockup-author">neurotidy-bot</span>
+                            <span class="mockup-tag">bot</span>
+                        </div>
+                        <div id="bot-message" style="font-size:14px; min-height: 80px; padding-top: 10px;"></div>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="feature-card">
+                    <h3 class="feature-card-title">Local CLI Debugging</h3>
+                    <p class="feature-card-text">Scan ML scripts locally from your terminal. Catch issues and understand
+                        deep learning concepts before deploying to CI.</p>
+                    <div class="feature-mockup terminal-mockup">
+                        <div class="mockup-header">
+                            <div class="terminal-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <span class="mockup-title">neurotidy cli</span>
+                        </div>
+                        <div id="cli-line1" style="color: #a855f7; margin-bottom: 15px; min-height: 1.2em;"></div>
+                        <div id="cli-line2" style="color: #3fb950; margin-bottom: 15px; min-height: 1.2em;"></div>
+                        <div id="cli-line3" style="color: #c9d1d9; min-height: 1.2em;"></div>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="feature-card">
+                    <h3 class="feature-card-title">Contextual Explanations</h3>
+                    <p class="feature-card-text">RAG-powered explanations break down confusing PyTorch errors with
+                        clear, actionable fix suggestions.</p>
+                    <div class="feature-mockup diff-mockup"
+                        style="background:#241c19; border-color: rgba(248,81,73,0.1); padding: 0; overflow: hidden;">
+                        <div class="mockup-header" style="padding: 10px 15px; background: rgba(0,0,0,0.2);">
+                            <img src="../Assets/image.png" class="mockup-logo mini" alt="NeuroTidy">
+                            <span class="mockup-subtitle">Contextual Explanation</span>
+                        </div>
+                        <div id="diff-line1"
+                            style="color:#ff7b72; padding:12px 15px; background:rgba(248,81,73,0.1); min-height: 1.2em; margin-bottom: 8px;">
+                        </div>
+                        <div id="diff-line2"
+                            style="color:#3fb950; padding:12px 15px; background:rgba(46,160,67,0.1); min-height: 1.2em; margin-bottom: 8px;">
+                        </div>
+                        <div id="diff-line3"
+                            style="color:var(--text-muted); padding: 20px 15px; font-size:13px; font-family:var(--font-body); min-height: 1.2em;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Playground -->
+    <section class="section" id="playground">
+        <div class="container">
+            <h2 class="section-title text-center" style="margin-bottom: 20px;">Try it <span class="text-gradient">for
+                    yourself</span></h2>
+            <p class="section-subtitle text-center" style="margin-bottom: 60px;">Paste your code or try an example to
+                see NeuroTidy in action.</p>
+
+            <div class="playground-window">
+                <div class="playground-header">
+                    <div class="playground-tabs">
+                        <button class="play-tab active" data-mode="explain">Explain</button>
+                        <button class="play-tab" data-mode="analyze">Analyze</button>
+                        <button class="play-tab" data-mode="optimize">Optimize</button>
+                    </div>
+                    <div class="playground-controls">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                </div>
+
+                <div class="playground-body">
+                    <div class="editor-pane">
+                        <div class="pane-label">PYTHON EDITOR</div>
+                        <textarea id="code-input" spellcheck="false"
+                            placeholder="# Paste your Python or ML code here..."></textarea>
+                        <div class="example-tags">
+                            <span class="tag-label">Examples:</span>
+                            <button class="ex-tag"
+                                data-code="import torch&#10;x = torch.randn(1, 3, 224, 224)&#10;y = x.view(-1, 150528) # What is this?">Dimension
+                                Fix</button>
+                            <button class="ex-tag"
+                                data-code="for epoch in range(10):&#10;    loss = criterion(model(x), y)&#10;    loss.backward()&#10;    optimizer.step()">Missing
+                                Zero Grad</button>
+                            <button class="ex-tag"
+                                data-code="import torch.nn as nn&#10;model = nn.Sequential(&#10;    nn.Linear(10, 5),&#10;    nn.Sigmoid()&#10;)&#10;crit = nn.CrossEntropyLoss()">Loss
+                                Mismatch</button>
+                        </div>
+                    </div>
+                    <div class="result-pane">
+                        <div class="pane-label">NEUROTIDY INSIGHTS</div>
+                        <div id="playground-output" class="terminal-output">
+                            <span class="placeholder-text">// Select a mode and click Run to see insights...</span>
+                        </div>
+                        <button id="run-btn" class="btn-premium mini">
+                            Run Analysis
+                            <span class="btn-icon">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5"
+                                    fill="none">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Video Showcase Section -->
+    <section class="section" id="showcase">
+        <div class="container text-center">
+            <h2 class="section-title" style="margin-bottom: 20px;">See <span class="text-gradient">NeuroTidy</span> in
+                Action</h2>
+            <p class="section-subtitle" style="margin-bottom: 50px;">Watch our application intelligently debug Deep
+                Learning models in the CLI and GitHub.</p>
+
+            <div class="showcase-grid">
+                <div>
+                    <h3 style="color: var(--text-light); margin-bottom: 20px; font-size: 1.2rem; font-weight: 600;">
+                        Terminal CLI Demo</h3>
+                    <div class="video-placeholder-container">
+                        <video class="showcase-video" src="assets/cli.mp4" autoplay loop muted playsinline
+                            style="width: 100%; border-radius: 14px; display: block; aspect-ratio: 16/9; object-fit: cover;"></video>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="color: var(--text-light); margin-bottom: 20px; font-size: 1.2rem; font-weight: 600;">
+                        GitHub PR Integration Demo</h3>
+                    <div class="video-placeholder-container">
+                        <video class="showcase-video" src="assets/1_merged.mp4" autoplay loop muted playsinline
+                            style="width: 100%; border-radius: 14px; display: block; aspect-ratio: 16/9; object-fit: cover;"></video>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Section -->
+    <section class="section" id="comparison">
+        <div class="container">
+            <h2 class="section-title text-center" style="margin-bottom: 20px;">Built specifically for <span
+                    class="text-gradient">ML Engineers</span></h2>
+            <p class="section-subtitle text-center" style="margin-bottom: 60px;">Why NeuroTidy beats general-purpose AI
+                Tools.</p>
+
+            <div class="comparison-container">
+                <div class="comparison-grid">
+                    <!-- Header -->
+                    <div class="comparison-header">
+                        <div class="comp-col-feature">Feature</div>
+                        <div class="comp-col-standard">Standard AI IDEs</div>
+                        <div class="comp-col-nt">NeuroTidy</div>
+                    </div>
+
+                    <!-- Row 1 -->
+                    <div class="comparison-row">
+                        <div class="comp-col-feature">Specialization</div>
+                        <div class="comp-col-standard">Generic Autocomplete</div>
+                        <div class="comp-col-nt">Deep Learning Domain Experts</div>
+                    </div>
+
+                    <!-- Row 2 -->
+                    <div class="comparison-row">
+                        <div class="comp-col-feature">Knowledge Base</div>
+                        <div class="comp-col-standard">Static LLM Data</div>
+                        <div class="comp-col-nt">RAG-Powered (Latest Docs)</div>
+                    </div>
+
+                    <!-- Row 3 -->
+                    <div class="comparison-row">
+                        <div class="comp-col-feature">Insight Depth</div>
+                        <div class="comp-col-standard">"What" to code</div>
+                        <div class="comp-col-nt">"Why" model is failing</div>
+                    </div>
+
+                    <!-- Row 4 -->
+                    <div class="comparison-row">
+                        <div class="comp-col-feature">Workflow</div>
+                        <div class="comp-col-standard">IDE-Only</div>
+                        <div class="comp-col-nt">PR + CLI + Terminal</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- About Section Placeholder -->
     <section class="section about" id="about">
         <div class="container">
             <div class="split-layout">
                 <div class="content-side">
                     <span class="section-tag">The Philosophy</span>
-                    <h2 class="section-title">Crystal Clear Focus</h2>
-                    <p class="section-text">Lone Penguin provides a refreshing, structured space that functions like a
-                        breath
-                        of crisp Antarctic air for your brain. Regain control and navigate your tasks with unmatched
-                        precision.</p>
-                    <a href="#contact" class="link-arrow">Explore Features <svg viewBox="0 0 24 24" width="20"
-                            height="20" stroke="currentColor" stroke-width="2" fill="none">
+                    <h2 class="section-title">Intelligent AI Debugging</h2>
+                    <p class="section-text">NeuroTidy provides an automated, AI-driven code review process that
+                        pinpoints errors directly in your Pull Requests. Stop guessing and start shipping code with
+                        unmatched precision.</p>
+                    <a href="#about" class="link-arrow">Explore Features <svg viewBox="0 0 24 24" width="20" height="20"
+                            stroke="currentColor" stroke-width="2" fill="none">
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                             <polyline points="12 5 19 12 12 19"></polyline>
                         </svg></a>
@@ -97,18 +335,32 @@
     </section>
 
     <!-- Adding padding so scrolling works for the anchor tags -->
-    <section class="section" id="contact"
-        style="min-height: 80vh; background: #1a1e24; display: flex; align-items: center; justify-content: center;">
-        <div class="container" style="text-align: center;">
-            <h2 class="section-title">Get In Touch</h2>
-            <p class="section-text" style="max-width: 600px; margin: 0 auto;">Have questions about our methodology or
-                platform? We're here to help you achieve absolute mental clarity.</p>
-            <a href="mailto:hello@lonepenguin.app" class="btn btn-primary"
-                style="margin-top: 30px; display: inline-block;">Contact Support</a>
+    <section class="section" id="contact">
+        <div class="container" style="text-align: center; position: relative; z-index: 1;">
+            <span class="section-tag">Get In Touch</span>
+            <h2 class="section-title" style="margin-bottom: 20px;">Ready to <span class="text-gradient">optimize your
+                    workflow?</span></h2>
+            <p class="section-text" style="max-width: 600px; margin: 0 auto; color: var(--text-muted);">
+                Have questions about our methodology or platform? We're here to help you achieve absolute mental clarity
+                in your deep learning projects.
+            </p>
+            <div style="margin-top: 40px;">
+                <a href="mailto:hello@lonepenguin.app" class="btn-premium" style="margin: 0 auto;">
+                    Contact Support
+                    <span class="btn-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5"
+                            fill="none">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                </a>
+            </div>
         </div>
+        <div class="contact-glow"></div>
     </section>
 
-    <script src="js/main.js"></script>
+    <script src="js/main.js?v=premium"></script>
 </body>
 
 </html>

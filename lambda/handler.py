@@ -28,10 +28,11 @@ bedrock_agent_client = boto3.client("bedrock-agent-runtime", region_name=REGION)
 # ─── Environment Variables ─────────────────────────────────────────────────
 S3_BUCKET = os.environ.get("S3_BUCKET", "neurotidy-results")
 DYNAMODB_TABLE = os.environ.get("DYNAMODB_TABLE", "neurotidy-cache")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-haiku-20241022-v1:0")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "meta.llama3-70b-instruct-v1:0")
 KNOWLEDGE_BASE_ID = os.environ.get("KNOWLEDGE_BASE_ID", "")
 CACHE_TTL = int(os.environ.get("CACHE_TTL_SECONDS", "86400"))
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_APP_ID = os.environ.get("GITHUB_APP_ID", "")
+GITHUB_PRIVATE_KEY_PATH = os.environ.get("GITHUB_PRIVATE_KEY_PATH", "")
 GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
 
 table = dynamodb.Table(DYNAMODB_TABLE)
@@ -98,6 +99,7 @@ def lambda_handler(event, context):
 
     # ── /review is handled separately (raw body for HMAC, JSON for payload) ──
     if action == "review":
+        print(f"[DEBUG] Raw incoming event for /review: {event.get('body')[:200]} isBase64: {event.get('isBase64Encoded')}")
         return _handle_review(event)
 
     try:
@@ -188,8 +190,8 @@ def _handle_review(event: dict) -> dict:
 
     Validates HMAC-SHA256 signature then delegates to GitHubReviewer.
     """
-    if not GITHUB_TOKEN:
-        return _error(503, "GitHub integration not configured: GITHUB_TOKEN missing")
+    if not GITHUB_APP_ID or not GITHUB_PRIVATE_KEY_PATH:
+        return _error(503, "GitHub App integration not configured: GITHUB_APP_ID or GITHUB_PRIVATE_KEY_PATH missing")
 
     raw_body = event.get("body") or ""
     if isinstance(raw_body, str):
@@ -209,13 +211,18 @@ def _handle_review(event: dict) -> dict:
         return _success({"status": "ignored", "reason": f"Event type '{github_event}' not handled"})
 
     try:
+        if event.get("isBase64Encoded"):
+            import base64
+            raw_body = base64.b64decode(raw_body).decode('utf-8')
         payload = json.loads(raw_body)
     except json.JSONDecodeError:
+        print(f"[ERROR] Invalid JSON body from GitHub: {raw_body[:200]}")
         return _error(400, "Invalid JSON in webhook body")
 
     try:
         reviewer = GitHubReviewer(
-            github_token=GITHUB_TOKEN,
+            github_app_id=GITHUB_APP_ID,
+            github_private_key_path=GITHUB_PRIVATE_KEY_PATH,
             bedrock_client=bedrock_client,
             model_id=BEDROCK_MODEL_ID,
             dynamodb_table=table,

@@ -99,6 +99,8 @@ class RAGOptimizer:
             "has_validation": False,
             "has_seed": False,
             "model_type": None,
+            "has_softmax": False,
+            "has_crossentropy": False,
             "complexity": "simple"
         }
         
@@ -114,6 +116,8 @@ class RAGOptimizer:
         features['has_model_train'] = 'model.train()' in code or '.train()' in code
         features['has_validation'] = any(x in code for x in ['valid', 'val_', 'validation'])
         features['has_seed'] = any(x in code for x in ['manual_seed', 'random.seed', 'np.random.seed'])
+        features['has_softmax'] = 'softmax' in code.lower()
+        features['has_crossentropy'] = 'CrossEntropyLoss' in code
         
         # Detect training loop
         features['has_training_loop'] = ('for epoch' in code or 'for batch' in code) and features['has_backward']
@@ -239,6 +243,10 @@ class RAGOptimizer:
                 relevant.append(rule)
             elif 'dataloader' in rule_features and features['has_dataloader']:
                 relevant.append(rule)
+            elif 'softmax' in rule_features and features.get('has_softmax', False):
+                relevant.append(rule)
+            elif 'crossentropy' in rule_features and features.get('has_crossentropy', False):
+                relevant.append(rule)
         
         # Limit to top 5 most relevant
         return relevant[:5]
@@ -247,7 +255,7 @@ class RAGOptimizer:
         """Load rules from local JSON file"""
         try:
             import os
-            rules_path = os.path.join(os.path.dirname(__file__), '..', 'knowledge_base', 'rules_database.json')
+            rules_path = os.path.join(os.path.dirname(__file__), 'knowledge_base', 'rules_database.json')
             with open(rules_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 return data.get('rules', [])
@@ -257,6 +265,7 @@ class RAGOptimizer:
 
     def _analyze_with_llm(self, code: str, rules: List[dict], features: Dict, mode: str) -> dict:
         """Use LLM to analyze code with retrieved rules"""
+        from bedrock_utils import call_bedrock_with_retry
         
         # Build context from retrieved rules
         rules_context = self._build_rules_context(rules, mode)
@@ -266,17 +275,14 @@ class RAGOptimizer:
         
         # Call Bedrock
         try:
-            response = self.bedrock_client.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 2000,
-                    "temperature": 0.1,
-                    "messages": [{"role": "user", "content": prompt}]
-                })
+            text = call_bedrock_with_retry(
+                self.bedrock_client,
+                self.model_id,
+                prompt,
+                max_tokens=2000,
+                temperature=0.1,
+                system_prompt="You are a RAG-based optimization assistant that responds in JSON format."
             )
-            
-            text = json.loads(response['body'].read())['content'][0]['text']
             
             # Extract JSON from response
             json_match = re.search(r'\{.*\}', text, re.DOTALL)

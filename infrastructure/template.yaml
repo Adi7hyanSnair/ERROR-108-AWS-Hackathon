@@ -5,7 +5,7 @@ Description: NeuroTidy AWS — AI-Powered Python Code Analyzer (5 endpoints incl
 Parameters:
   BedrockModelId:
     Type: String
-    Default: us.anthropic.claude-3-5-haiku-20241022-v1:0
+    Default: meta.llama3-70b-instruct-v1:0
     Description: Amazon Bedrock model ID (cross-region inference profile ID)
 
   CacheTtlSeconds:
@@ -18,17 +18,21 @@ Parameters:
     Default: 30
     Description: How many days to keep analysis results in S3.
 
-  GithubToken:
+  GithubAppId:
     Type: String
     Default: ''
-    NoEcho: true
-    Description: GitHub Personal Access Token (repo + pull_requests scope). Leave empty to disable PR review.
+    Description: GitHub App ID for PR reviews. Leave empty to disable PR review.
 
   GithubWebhookSecret:
     Type: String
     Default: ''
     NoEcho: true
     Description: GitHub webhook secret for HMAC-SHA256 signature validation.
+
+  GithubPrivateKeyPath:
+    Type: String
+    Default: ''
+    Description: Path to the downloaded GitHub App private key (.pem file) inside the lambda folder
 
   BedrockMaxRetries:
     Type: Number
@@ -131,7 +135,7 @@ Resources:
       FunctionName: neurotidy-analyzer
       CodeUri: ../lambda/
       Handler: handler.lambda_handler
-      Runtime: python3.11
+      Runtime: python3.12
       Timeout: 90
       MemorySize: 512
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -141,8 +145,9 @@ Resources:
           DYNAMODB_TABLE: !Ref MetadataTable
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           CACHE_TTL_SECONDS: !Ref CacheTtlSeconds
-          GITHUB_TOKEN: !Ref GithubToken
+          GITHUB_APP_ID: !Ref GithubAppId
           GITHUB_WEBHOOK_SECRET: !Ref GithubWebhookSecret
+          GITHUB_PRIVATE_KEY_PATH: !Ref GithubPrivateKeyPath
           BEDROCK_MAX_RETRIES: !Ref BedrockMaxRetries
           BEDROCK_RETRY_BASE_DELAY_SEC: !Ref BedrockRetryBaseDelaySec
           BEDROCK_MAX_TOKENS: '2000'

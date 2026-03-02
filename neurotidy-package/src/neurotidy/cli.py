@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
+import os; os.environ.setdefault('PYTHONUTF8', '1')  # Force UTF-8 on Windows
 """
 NeuroTidy CLI — Analyze Python code from your terminal.
 
 Usage:
-  python neurotidy.py explain myfile.py --mode beginner
-  python neurotidy.py analyze myfile.py
-  python neurotidy.py optimize myfile.py
-  python neurotidy.py debug --error "NameError: name 'x' is not defined"
+  neurotidy explain myfile.py --mode beginner
+  neurotidy analyze myfile.py
+  neurotidy optimize myfile.py
+  neurotidy debug --error "NameError: name 'x' is not defined"
   
-  python neurotidy.py review --diff path/to/changes.diff
-  python neurotidy.py review --repo owner/repo --pr 42
+  neurotidy review --diff path/to/changes.diff
+  neurotidy review --repo owner/repo --pr 42
 """
 
 import argparse
@@ -22,26 +23,44 @@ from pathlib import Path
 import urllib.request
 import urllib.error
 
+from neurotidy import DEFAULT_API_ENDPOINT, __version__
+
+# Fix Windows encoding so emoji/unicode prints correctly
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 def load_config() -> str:
-    """Load API endpoint from config.env or environment."""
+    """Load API endpoint from configuration files or environment."""
     # 1. Try environment variable
     endpoint = os.environ.get('NEUROTIDY_API_ENDPOINT', '').strip()
     if endpoint:
         return endpoint.rstrip('/')
 
-    # 2. Try reading from config.env in the project root
-    config_path = Path(__file__).parent.parent / 'config.env'
-    if config_path.exists():
-        for line in config_path.read_text(encoding='utf-8').splitlines():
-            line = line.strip()
-            if line.startswith('NEUROTIDY_API_ENDPOINT=') and not line.startswith('#'):
-                val = line.split('=', 1)[1].strip()
-                if val and not val.startswith('<'):
-                    return val.rstrip('/')
+    # 2. Try reading from config files in the current working directory
+    for config_name in ('config.env', 'config.eng'):
+        config_path = Path.cwd() / config_name
+        if config_path.exists():
+            try:
+                # Force UTF-8 for reading config files on Windows
+                content = config_path.read_text(encoding='utf-8')
+            except UnicodeDecodeError:
+                content = config_path.read_text() # Fallback
 
-    return ""
+            for line in content.splitlines():
+                line = line.strip()
+                if line.startswith('NEUROTIDY_API_ENDPOINT=') and not line.startswith('#'):
+                    val = line.split('=', 1)[1].strip()
+                    if val and not val.startswith('<'):
+                        return val.rstrip('/')
+
+    # 3. Use built-in default endpoint
+    return DEFAULT_API_ENDPOINT
 
 
 def call_api(endpoint: str, path: str, payload: dict) -> dict:
@@ -139,15 +158,16 @@ def print_banner():
                                  ▄██            ███                             
                               ▄██████▄       ▄▄▄███                             
                               ▀▀▀▀▀▀▀▀       ▀███▀▀                             
-                                                                                             
+                                                                                              
     """
 
     # Print penguin in purple
     for line in PENGUIN.splitlines():
-        print(f"{PURPLE}{line}{RESET}")
+        if line.strip():
+            print(f"{PURPLE}{line}{RESET}")
 
-    print(f"  {PURPLE}{BOLD}NeuroTidy{RESET}  {DIM}v1.1.0{RESET}  {GREY}·  AI-Powered Python & Deep Learning Code Analyzer{RESET}")
-    print(f"  {DIM}github.com/ERROR-108-AWS-Hackathon{RESET}")
+    print(f"  {PURPLE}{BOLD}NeuroTidy{RESET}  {DIM}v{__version__}{RESET}  {GREY}·  AI-Powered Python & Deep Learning Code Analyzer{RESET}")
+    print(f"  {DIM}github.com/ADI7HYANSNAIR/ERROR-108-AWS-HACKATHON{RESET}")
     print()
     print(_rule('─', GREY))
     print()
@@ -173,14 +193,41 @@ def print_banner():
 def print_explanation(result: dict):
     print(_section("📖  CODE EXPLANATION", PURPLE))
     explanation = result.get('explanation', '')
+    
+    # Handle structured JSON explanation vs raw text
     if isinstance(explanation, dict):
-        explanation = json.dumps(explanation, indent=2)
-    print()
-    for para in str(explanation).split('\n'):
-        if para.strip():
-            print(textwrap.fill(para, width=_W, initial_indent='  ', subsequent_indent='  '))
-        else:
-            print()
+        for key, val in explanation.items():
+            title = key.replace('_', ' ').title()
+            print(f"\n  {_h(title, CYAN)}")
+            if isinstance(val, list):
+                for item in val:
+                    print(f"    - {item}")
+            else:
+                print(textwrap.indent(textwrap.fill(str(val), width=_W-4), "    "))
+    else:
+        # Improved markdown parsing for terminal
+        for line in str(explanation).splitlines():
+            line = line.strip()
+            if not line:
+                print()
+                continue
+            
+            if line.startswith('### '):
+                print(f"\n  {_h(line[4:], GREEN)}")
+            elif line.startswith('## '):
+                print(f"\n  {_h(line[3:], GREEN)}")
+            elif line.startswith('# '):
+                print(f"\n  {_h(line[2:], YELLOW)}")
+            elif line.startswith('**') and line.endswith('**'):
+                print(f"\n  {_h(line.strip('*'), CYAN)}")
+            elif line.startswith('* ') or line.startswith('- '):
+                content = line[2:]
+                wrapped = textwrap.fill(content, width=_W-6)
+                print(textwrap.indent(wrapped, "    - "))
+            elif line[0].isdigit() and (line[1:3] == '. ' or line[1:2] == '.'):
+                print(f"  {BOLD}{line}{RESET}")
+            else:
+                print(textwrap.indent(textwrap.fill(line, width=_W-4), "  "))
     print()
 
 
@@ -349,12 +396,26 @@ def print_review(result: dict):
     print()
 
 
+def _h(text: str, color: str = CYAN) -> str:
+    return f"{color}{BOLD}{text}{RESET}"
+
+
 # ─── Commands ─────────────────────────────────────────────────────────────────
 def cmd_explain(args, endpoint: str):
-    code = Path(args.file).read_text() if args.file else args.code
+    code = ""
+    if args.file:
+        try:
+            code = Path(args.file).read_text(encoding='utf-8')
+        except Exception as e:
+            print(f"{RED}Error reading file {args.file}: {e}{RESET}")
+            sys.exit(1)
+    else:
+        code = args.code
+
     if not code:
         print(f"{RED}Error: provide a file or --code{RESET}")
         sys.exit(1)
+        
     print(f"  {GREY}Explaining code  {DIM}({args.mode} mode){RESET}  …\n")
     result = call_api(endpoint, 'explain', {'code': code, 'mode': args.mode})
     if 'error' in result:
@@ -364,10 +425,20 @@ def cmd_explain(args, endpoint: str):
 
 
 def cmd_analyze(args, endpoint: str):
-    code = Path(args.file).read_text() if args.file else args.code
+    code = ""
+    if args.file:
+        try:
+            code = Path(args.file).read_text(encoding='utf-8')
+        except Exception as e:
+            print(f"{RED}Error reading file {args.file}: {e}{RESET}")
+            sys.exit(1)
+    else:
+        code = args.code
+
     if not code:
         print(f"{RED}Error: provide a file or --code{RESET}")
         sys.exit(1)
+        
     print(f"  {GREY}Analyzing code quality …{RESET}\n")
     result = call_api(endpoint, 'analyze', {'code': code, 'use_ai': not args.no_ai})
     if 'error' in result:
@@ -377,10 +448,20 @@ def cmd_analyze(args, endpoint: str):
 
 
 def cmd_optimize(args, endpoint: str):
-    code = Path(args.file).read_text() if args.file else args.code
+    code = ""
+    if args.file:
+        try:
+            code = Path(args.file).read_text(encoding='utf-8')
+        except Exception as e:
+            print(f"{RED}Error reading file {args.file}: {e}{RESET}")
+            sys.exit(1)
+    else:
+        code = args.code
+
     if not code:
         print(f"{RED}Error: provide a file or --code{RESET}")
         sys.exit(1)
+        
     print(f"  {GREY}Checking for DL optimizations …{RESET}\n")
     result = call_api(endpoint, 'optimize', {'code': code, 'use_ai': not args.no_ai})
     if 'error' in result:
@@ -392,7 +473,12 @@ def cmd_optimize(args, endpoint: str):
 def cmd_debug(args, endpoint: str):
     code = ""
     if args.file:
-        code = Path(args.file).read_text()
+        try:
+            code = Path(args.file).read_text(encoding='utf-8')
+        except Exception as e:
+            print(f"{RED}Error reading file {args.file}: {e}{RESET}")
+            sys.exit(1)
+            
     print(f"  {GREY}Debugging error …{RESET}\n")
     result = call_api(endpoint, 'debug', {
         'error': args.error or '',
@@ -492,6 +578,7 @@ def main():
         """)
     )
     parser.add_argument('--endpoint', help='API endpoint URL (overrides configuration)')
+    parser.add_argument('--version', action='version', version=f'neurotidy {__version__}')
     subparsers = parser.add_subparsers(dest='command', required=True)
 
     # explain

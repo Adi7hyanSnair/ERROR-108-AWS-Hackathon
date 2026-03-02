@@ -299,6 +299,8 @@ class StaticAnalyzer:
 
     def _get_ai_insights(self, code: str, violations: List[dict]) -> dict:
         """Get AI-powered code quality insights from Bedrock."""
+        from bedrock_utils import call_bedrock_with_retry
+
         violation_summary = "\n".join([
             f"- [{v['rule_id']}] {v['description']}" for v in violations[:5]
         ]) or "None found."
@@ -324,17 +326,14 @@ Return JSON:
 }}
 """
         try:
-            request_body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 600,
-                "temperature": 0.1,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            response = self.bedrock_client.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps(request_body)
+            text = call_bedrock_with_retry(
+                self.bedrock_client,
+                self.model_id,
+                prompt,
+                max_tokens=600,
+                temperature=0.1,
+                system_prompt="You are a code quality assistant that responds in JSON format."
             )
-            text = json.loads(response['body'].read())['content'][0]['text']
             json_match = re.search(r'\{.*\}', text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())

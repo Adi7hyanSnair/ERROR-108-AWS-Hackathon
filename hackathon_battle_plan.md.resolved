@@ -1,0 +1,467 @@
+# 🏆 NeuroTidy — Hackathon Battle Plan
+
+> **Team Size**: 4 members · **Goal**: WIN the AWS Hackathon
+
+---
+
+## ⏰ Timeline Overview (Estimated 8-10 hours total)
+
+| Phase | Time | Focus | Who |
+|-------|------|-------|-----|
+| **Phase 0** | 0:00–0:30 | Setup & Prerequisites | All |
+| **Phase 1** | 0:30–2:00 | AWS Deploy + Backend Working | 🟣M1 + 🔵M3 |
+| **Phase 2** | 2:00–5:00 | Build All Features Parallel | All 4 |
+| **Phase 3** | 5:00–7:00 | Integration + Testing | All 4 |
+| **Phase 4** | 7:00–8:30 | Polish + Demo Prep | 🟡M2 leads |
+| **Phase 5** | 8:30–9:00 | Final Testing + Submission | All |
+
+---
+
+## Phase 0 — Setup (Everyone, 30 min)
+
+Every member does this on their own machine:
+
+```bash
+# Clone the repo
+git clone https://github.com/Adi7hyanSnair/ERROR-108-AWS-Hackathon.git
+cd ERROR-108-AWS-Hackathon
+
+# Install Python dependencies (for CLI and local tests)
+pip install requests
+
+# Verify local tests pass FIRST (no AWS needed)
+python tests/test_local.py
+```
+
+> [!IMPORTANT]
+> Everyone should branch off [main](file:///c:/Desktop/NeuroTidy/cli/neurotidy.py#226-285) to avoid merge conflicts:
+> ```
+> git checkout -b feature/<member-name>
+> ```
+
+---
+
+## Phase 1 — Get the Backend Live (0:30–2:00)
+
+### 🟣 Member 1 — AWS Infrastructure Lead
+
+**Goal**: Get the API live so everyone else can test against it.
+
+#### Step 1: Prerequisites (15 min)
+```powershell
+# Install AWS CLI (if not installed)
+# Download from: https://aws.amazon.com/cli/
+aws --version   # Verify it works
+
+# Install SAM CLI (recommended, makes deploy easier)
+# Download from: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
+sam --version   # Verify
+```
+
+#### Step 2: Configure AWS CLI (5 min)
+```powershell
+aws configure
+# Enter: Access Key ID     → YOUR_ACCESS_KEY_ID
+# Enter: Secret Access Key → YOUR_SECRET_ACCESS_KEY
+# Enter: Default region    → us-east-1
+# Enter: Output format     → json
+```
+
+#### Step 3: Enable Bedrock Model Access (10 min)
+1. Go to [AWS Bedrock Console](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
+2. Click **Manage model access**
+3. Check the box next to **Claude 3 Sonnet** (or Claude 3 Haiku — cheaper for testing)
+4. Click **Save changes**
+5. Wait 1-2 minutes for activation
+
+> [!CAUTION]
+> If Claude models are unavailable in your region, switch to **Llama 3 8B** (Meta) — it's usually instantly available. Update [config.eng](file:///c:/Desktop/NeuroTidy/config.eng) accordingly:
+> ```
+> BEDROCK_MODEL_ID=meta.llama3-8b-instruct-v1:0
+> ```
+
+#### Step 4: Deploy (20 min)
+```powershell
+cd infrastructure
+.\deploy.ps1
+```
+
+**If deploy fails**, check these common issues:
+
+| Error | Fix |
+|-------|-----|
+| `S3 bucket already exists` | Change `S3_BUCKET_SUFFIX` in [config.eng](file:///c:/Desktop/NeuroTidy/config.eng) to something unique |
+| `CAPABILITY_IAM required` | Already handled in the script, but verify `--capabilities CAPABILITY_IAM` is present |
+| `Bedrock access denied` | Go back to Step 3 — model access wasn't enabled |
+| `SAM not found` | The script falls back to raw CloudFormation — that's fine |
+
+#### Step 5: Share the API URL (5 min)
+After deploy succeeds, the script prints something like:
+```
+BaseApiUrl: https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
+```
+
+**📢 IMMEDIATELY share this URL with all 3 teammates via your group chat.**
+
+Everyone updates their [config.eng](file:///c:/Desktop/NeuroTidy/config.eng):
+```
+NEUROTIDY_API_ENDPOINT=https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod
+```
+
+#### Step 6: Quick Smoke Test (5 min)
+```powershell
+# Test the /explain endpoint
+Invoke-RestMethod -Uri "https://YOUR-API/prod/explain" -Method POST -ContentType "application/json" -Body '{"code":"def hello(): print(\"hi\")", "mode":"beginner"}'
+```
+
+If you get a JSON response with [explanation](file:///c:/Desktop/NeuroTidy/cli/neurotidy.py#87-94) → ✅ Backend is LIVE!
+
+---
+
+### 🔵 Member 3 — Backend Developer (parallel with M1)
+
+While M1 deploys, you prepare the backend improvements:
+
+#### Step 1: Read and Understand the Lambda Code (30 min)
+Read these files in order:
+1. [lambda/handler.py](file:///c:/Desktop/NeuroTidy/lambda/handler.py) — Understand the routing
+2. [lambda/code_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/code_explainer.py) — How Bedrock prompts work
+3. [lambda/bug_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/bug_explainer.py) — Error analysis logic
+
+#### Step 2: Improve Bedrock Prompts (30 min)
+The prompts in [code_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/code_explainer.py) and [bug_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/bug_explainer.py) are basic. Improve them:
+
+In [code_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/code_explainer.py) → [_build_prompt()](file:///c:/Desktop/NeuroTidy/lambda/code_explainer.py#62-93):
+- Add system role: "You are NeuroTidy, an expert Python code analyzer"
+- Ask for **structured markdown output** with headers
+- For ML/DL code: ask it to explain tensor shapes, gradient flow, loss computation
+- Add "respond in markdown format with code examples" instruction
+
+In [bug_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/bug_explainer.py) → [_build_prompt()](file:///c:/Desktop/NeuroTidy/lambda/code_explainer.py#62-93):
+- Add specific PyTorch/TensorFlow error patterns
+- Ask for "Step 1, Step 2, Step 3" fix format
+- Ask it to suggest the exact corrected code
+
+#### Step 3: Add Retry Logic (20 min)
+In [code_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/code_explainer.py) and [bug_explainer.py](file:///c:/Desktop/NeuroTidy/lambda/bug_explainer.py) [_call_bedrock()](file:///c:/Desktop/NeuroTidy/lambda/bug_explainer.py#227-261):
+```python
+import time
+
+def _call_bedrock(self, prompt, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            # ... existing bedrock call ...
+            return explanation
+        except Exception as e:
+            if "ThrottlingException" in str(e) and attempt < max_retries - 1:
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s
+                continue
+            raise
+```
+
+#### Step 4: Add DynamoDB Cache Check (30 min)
+In [handler.py](file:///c:/Desktop/NeuroTidy/lambda/handler.py), before calling any analyzer, check the cache:
+```python
+import hashlib
+
+def _check_cache(code, action):
+    code_hash = hashlib.md5(code.encode()).hexdigest()
+    try:
+        response = table.get_item(Key={'analysis_id': f"{action}-{code_hash}"})
+        if 'Item' in response:
+            return response['Item']
+    except:
+        pass
+    return None
+```
+
+---
+
+## Phase 2 — Parallel Feature Development (2:00–5:00)
+
+Once the API is confirmed working, everyone works in parallel.
+
+---
+
+### 🟣 Member 1 — pip Package (2 hours)
+
+Now that the backend is live, package the CLI for `pip install`.
+
+#### Create Package Structure
+```
+neurotidy-package/
+├── pyproject.toml
+├── README.md
+├── LICENSE
+└── src/
+    └── neurotidy/
+        ├── __init__.py
+        ├── cli.py          ← Refactored from cli/neurotidy.py
+        └── client.py       ← API call logic
+```
+
+#### `pyproject.toml`
+```toml
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "neurotidy"
+version = "0.1.0"
+description = "AI-Powered Python & Deep Learning Code Analyzer"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["requests>=2.28.0"]
+
+[project.scripts]
+neurotidy = "neurotidy.cli:main"
+```
+
+#### Test it locally
+```powershell
+pip install -e .
+neurotidy explain tests/sample_code.py --mode beginner
+neurotidy analyze tests/sample_code.py
+```
+
+> [!TIP]
+> You don't need to publish to PyPI for the hackathon. Just showing `pip install -e .` works locally is enough. You can also create a GitHub Release with `.whl` file for download.
+
+---
+
+### 🟡 Member 2 — Website & Demo (2 hours)
+
+#### Task 1: Connect Frontend to Live API (15 min)
+1. Open [frontend/app.js](file:///c:/Desktop/NeuroTidy/frontend/app.js)
+2. Find where the API endpoint is configured
+3. Set the default to the live API URL from M1
+
+#### Task 2: Test All 4 Modes in the Web UI (30 min)
+Open [frontend/index.html](file:///c:/Desktop/NeuroTidy/frontend/index.html) in a browser and test:
+
+| Mode | Sample Input | Expected Output |
+|------|-------------|-----------------|
+| **Explain** | Paste [tests/sample_code.py](file:///c:/Desktop/NeuroTidy/tests/sample_code.py) + mode=beginner | Clear explanation |
+| **Analyze** | Paste code with bare `except:` | PY004 violation detected |
+| **Optimize** | Paste PyTorch training loop | NT007 missing zero_grad |
+| **Debug** | Error: `RuntimeError: mat1 shapes cannot be multiplied` | Root cause + fix |
+
+#### Task 3: Polish the Website (1 hour)
+Enhance [frontend/index.html](file:///c:/Desktop/NeuroTidy/frontend/index.html) with:
+- **Team section**: Add your team name "ERROR-108", member names
+- **Install section**: Add tabs showing `pip install neurotidy`, GitHub Action YAML, CLI usage
+- **Architecture diagram**: Add an image/SVG showing `User → API Gateway → Lambda → Bedrock`
+- **Loading animation**: Make the spinner more satisfying
+- **Copy button**: Verify `copyResult()` works, add a "Copied!" toast
+
+#### Task 4: Prepare Demo Script (30 min)
+Write a demo script — practice this exact flow:
+1. Open website → paste PyTorch training code → click "Explain" (beginner mode)
+2. Switch to "Analyze" → show violations found
+3. Switch to "Optimize" → show DL-specific optimizations
+4. Open terminal → `neurotidy analyze train.py` → show CLI working
+5. Show the GitHub Action YAML → "Teams can add this to their CI/CD"
+6. Show AWS architecture — "Serverless, scales to zero, costs pennies"
+
+---
+
+### 🔵 Member 3 — Backend Quality (2 hours, after Phase 1 work)
+
+#### After deploying prompt improvements:
+1. **Repackage Lambda**: After editing any file in [lambda/](file:///c:/Desktop/NeuroTidy/lambda/handler.py#72-157), redeploy:
+   ```powershell
+   cd infrastructure
+   .\deploy.ps1
+   ```
+2. **Test all 4 endpoints** with Postman or curl
+3. **Verify caching**: Call `/explain` twice with the same code → second call should be faster
+
+#### Create a "wow moment" for judges:
+- Make the `/debug` endpoint handle **real PyTorch errors** beautifully
+- Test with: `RuntimeError: Expected all tensors to be on the same device`
+- Test with: `ValueError: Target size (torch.Size([64])) must be the same as input size (torch.Size([64, 10]))`
+
+---
+
+### 🟢 Member 4 — Static Analysis + DL Rules (3 hours)
+
+#### Task 1: Run and Fix Existing Tests (15 min)
+```bash
+python tests/test_local.py
+# MUST be 20/20 passing before you change anything
+```
+
+#### Task 2: Add Missing DL Rules to [dl_optimizer.py](file:///c:/Desktop/NeuroTidy/lambda/dl_optimizer.py) (1.5 hours)
+
+Add these rules (each is ~15-20 lines of code):
+
+| Rule | What to Detect | How to Check |
+|------|---------------|--------------|
+| **NT010** | Missing `torch.cuda.amp.autocast()` for mixed precision | Check for training loops without `autocast` when using GPU |
+| **NT013** | Missing gradient clipping for RNN/LSTM | Look for `nn.RNN`/`nn.LSTM`/`nn.GRU` without `clip_grad_norm_` |
+| **NT017** | No random seed set | Check if `torch.manual_seed` or `random.seed` is missing |
+| **NT019** | Saving full model vs state_dict | Check for `torch.save(model` instead of `torch.save(model.state_dict()` |
+
+Pattern for adding a rule:
+```python
+def _check_new_rule(self, tree, code):
+    violations = []
+    # Detection logic using AST or regex
+    if condition_detected:
+        violations.append(self._make_violation("NT0XX", line_number))
+    return violations
+```
+
+Don't forget to:
+1. Add the rule to `self.RULES` dict
+2. Call `_check_new_rule()` from [_run_static_rules()](file:///c:/Desktop/NeuroTidy/lambda/dl_optimizer.py#87-105)
+
+#### Task 3: Add Missing Python Rules to [static_analyzer.py](file:///c:/Desktop/NeuroTidy/lambda/static_analyzer.py) (1 hour)
+
+| Rule | What to Detect |
+|------|---------------|
+| **PY006** | Unused imports |
+| **PY007** | Unused variables |
+| **PY008** | [print()](file:///c:/Desktop/NeuroTidy/cli/neurotidy.py#140-167) statements in production code |
+| **PY010** | Hardcoded magic numbers |
+
+#### Task 4: Write New Unit Tests (30 min)
+Add 5+ tests to [tests/test_local.py](file:///c:/Desktop/NeuroTidy/tests/test_local.py):
+```python
+def test_nt010_missing_autocast(self):
+    code = "for batch in loader:\n    output = model(batch)"
+    # Should detect missing autocast
+    
+def test_nt017_no_random_seed(self):
+    code = "import torch\nmodel = Net()"
+    # Should warn about missing seed
+```
+
+---
+
+## Phase 3 — Integration & Testing (5:00–7:00)
+
+### Everyone Merges (30 min)
+```bash
+git checkout main
+git merge feature/<member-name>
+# Resolve conflicts together on a call
+git push
+```
+
+### Full End-to-End Test Checklist
+
+| # | Test | Owner | Status |
+|---|------|-------|--------|
+| 1 | `python tests/test_local.py` → 25+ tests passing | 🟢M4 | ☐ |
+| 2 | Website → Explain (beginner) works | 🟡M2 | ☐ |
+| 3 | Website → Explain (advanced) works | 🟡M2 | ☐ |
+| 4 | Website → Analyze → shows violations | 🟡M2 | ☐ |
+| 5 | Website → Optimize → shows DL rules | 🟡M2 | ☐ |
+| 6 | Website → Debug → shows root cause | 🟡M2 | ☐ |
+| 7 | CLI `neurotidy explain sample_code.py` | 🟣M1 | ☐ |
+| 8 | CLI `neurotidy analyze sample_code.py` | 🟣M1 | ☐ |
+| 9 | CLI `neurotidy optimize sample_code.py` | 🟣M1 | ☐ |
+| 10 | CLI `neurotidy debug --error "NameError"` | 🟣M1 | ☐ |
+| 11 | API returns cached result on 2nd call | 🔵M3 | ☐ |
+| 12 | API handles invalid JSON gracefully | 🔵M3 | ☐ |
+| 13 | API handles empty code gracefully | 🔵M3 | ☐ |
+| 14 | S3 stores analysis results | 🟣M1 | ☐ |
+| 15 | DynamoDB has cache entries | 🟣M1 | ☐ |
+
+---
+
+## Phase 4 — Polish & Demo Prep (7:00–8:30)
+
+### 🟡 Member 2 (Lead) — Final Demo Preparation
+
+#### Demo Script (practice 3 times minimum):
+
+**Slide 1 — The Problem (30 seconds)**
+> "ML/DL code is hard to debug. A missing `model.eval()` can silently corrupt predictions. A missing `optimizer.zero_grad()` causes gradient accumulation bugs. And error messages like 'Expected mat1 shape...' are cryptic even for experienced developers."
+
+**Slide 2 — The Solution (30 seconds)**
+> "NeuroTidy is an AI-powered code analyzer built entirely on AWS serverless infrastructure. It doesn't just lint — it EXPLAINS, ANALYZES, OPTIMIZES, and DEBUGS your Python and Deep Learning code."
+
+**Slide 3 — Live Demo (3-4 minutes)**
+1. Open website → paste real PyTorch code → Explain (beginner)
+2. Same code → Analyze → "Look, it found 3 issues including a missing docstring and bare except"
+3. Same code → Optimize → "It detected no pin_memory, missing num_workers, and missing zero_grad"
+4. Debug → paste a REAL error → "It gives root cause and step-by-step fix"
+5. Open terminal → `neurotidy analyze train.py` → "Same power, from the CLI"
+
+**Slide 4 — Architecture (30 seconds)**
+> "100% serverless on AWS: API Gateway routes to Lambda, which calls Bedrock for AI analysis, stores results in S3, and caches metadata in DynamoDB. Cost: virtually zero when idle."
+
+**Slide 5 — Distribution (30 seconds)**
+> "Multiple distribution channels: web UI, pip installable CLI, and GitHub Action for CI/CD integration."
+
+**Slide 6 — What's Next (15 seconds)**
+> "VS Code extension, PyPI publishing, and support for more languages."
+
+### 🟣🔵🟢 Members 1, 3, 4 — Last-Minute Polish
+- Fix any UI bugs M2 found during demo practice
+- Ensure README is accurate and polished
+- Double-check [.gitignore](file:///c:/Desktop/NeuroTidy/.gitignore) includes `config.env` and [config.eng](file:///c:/Desktop/NeuroTidy/config.eng)
+- Make sure no AWS keys are committed anywhere
+
+---
+
+## Phase 5 — Final Checks & Submission (8:30–9:00)
+
+### Pre-Submit Checklist
+
+| Check | Done? |
+|-------|-------|
+| API is live and responding | ☐ |
+| Website works with live API | ☐ |
+| CLI works with live API | ☐ |
+| All tests pass locally | ☐ |
+| README is polished with correct instructions | ☐ |
+| No AWS secrets in Git | ☐ |
+| Demo video recorded (backup!) | ☐ |
+| Team contributions documented | ☐ |
+| GitHub repo is public | ☐ |
+| Architecture diagram in README | ☐ |
+
+---
+
+## 🎯 What Judges Look For (& How to Win)
+
+| Criteria | How NeuroTidy Addresses It |
+|----------|---------------------------|
+| **AWS Service Usage** | Bedrock, Lambda, API Gateway, S3, DynamoDB, CloudFormation, IAM — **7 AWS services** |
+| **Innovation** | ML/DL-specific static analysis + AI explanation is unique — not just another linter |
+| **Completeness** | Working web UI + CLI + API + tests + docs |
+| **Technical Depth** | AST parsing, custom rule engine, Bedrock prompt engineering, caching layer |
+| **Presentation** | Live demo with real code, clear problem/solution narrative |
+| **Scalability** | Serverless = infinite scale. DynamoDB cache = reduced AI calls |
+
+### 🔑 Key Differentiators to Emphasize:
+1. **"Not just another AI wrapper"** — NeuroTidy combines static analysis (AST-based) WITH AI. The static rules catch bugs the AI might miss, and the AI provides context the rules can't.
+2. **"ML/DL-specific"** — No other tool has rules like NT007 (missing zero_grad) or NT008 (CrossEntropy + sigmoid mismatch). These are real bugs that waste GPU hours.
+3. **"Multiple interfaces"** — Web, CLI, and API. Developers use it however they prefer.
+4. **"Costs pennies"** — Serverless means pay-per-use. No idle costs. Show the AWS billing dashboard if it's near $0.
+
+---
+
+## 🚨 Emergency Fixes
+
+| Problem | Quick Fix |
+|---------|-----------|
+| Bedrock returns errors | Switch model to `meta.llama3-8b-instruct-v1:0` (usually available instantly) |
+| Deploy script fails | Deploy manually: `aws cloudformation deploy --template-file template.yaml --stack-name neurotidy-stack --capabilities CAPABILITY_IAM` |
+| API returns 500 | Check CloudWatch logs: `aws logs tail /aws/lambda/neurotidy-analyzer --follow` |
+| Website CORS error | Verify `Access-Control-Allow-Origin: *` in Lambda response headers |
+| Rate limiting | Reduce `BEDROCK_MAX_TOKENS` to 1000 to speed up responses |
+| Account billing alert | Set a $5 budget alarm: AWS Console → Billing → Budgets |
+
+---
+
+## 📞 Communication Plan
+
+- **Group chat**: Share API URL, report bugs, coordinate merges
+- **Every 1 hour**: Quick standup — "What did you finish? What are you stuck on?"
+- **Before merge**: Alert the team, merge one at a time to avoid conflicts
+- **Before demo**: Full team dry run — everyone watches, catches issues

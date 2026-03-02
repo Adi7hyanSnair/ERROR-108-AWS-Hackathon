@@ -31,8 +31,8 @@ class DLOptimizer:
                   "Add num_workers=4 (or more) to DataLoader to parallelize data loading."),
         "NT007": ("optimizer.zero_grad() missing in training loop", "HIGH",
                   "Call optimizer.zero_grad() before loss.backward() to clear accumulated gradients."),
-        "NT008": ("Loss function mismatch: CrossEntropyLoss with sigmoid output", "HIGH",
-                  "CrossEntropyLoss expects raw logits, not sigmoid probabilities. Remove sigmoid or use BCELoss."),
+        "NT008": ("Loss function mismatch: CrossEntropyLoss with sigmoid/softmax output", "HIGH",
+                  "CrossEntropyLoss applies Softmax internally and expects raw logits. Remove softmax/sigmoid or use BCELoss/NLLLoss."),
         "NT009": ("Unnecessary .clone() before in-place operation", "LOW",
                   "Remove .clone() if you immediately overwrite the tensor."),
         "NT010": ("Missing mixed precision training (torch.cuda.amp)", "LOW",
@@ -158,9 +158,9 @@ class DLOptimizer:
         return results
 
     def _check_loss_mismatch(self, code: str) -> List[dict]:
-        """NT008: Detect CrossEntropyLoss + sigmoid anti-pattern."""
+        """NT008: Detect CrossEntropyLoss + sigmoid/softmax anti-pattern."""
         results = []
-        if 'CrossEntropyLoss' in code and ('sigmoid' in code or 'Sigmoid' in code):
+        if 'CrossEntropyLoss' in code and ('sigmoid' in code.lower() or 'softmax' in code.lower()):
             results.append(self._make_violation("NT008", 0))
         return results
 
@@ -218,11 +218,13 @@ class DLOptimizer:
 
     def _get_ai_optimizations(self, code: str) -> dict:
         """Call Bedrock for additional AI-powered optimization insights."""
+        from bedrock_utils import call_bedrock_with_retry
+
         prompt = f"""You are NeuroTidy, a deep learning performance expert.
 Analyze this Python ML/DL code for performance optimization opportunities.
 
 ```python
-{code}
+{code[:2000]}
 ```
 
 Return JSON with this exact structure:
@@ -235,17 +237,14 @@ Return JSON with this exact structure:
 }}
 """
         try:
-            request_body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 800,
-                "temperature": 0.1,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            response = self.bedrock_client.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps(request_body)
+            text = call_bedrock_with_retry(
+                self.bedrock_client,
+                self.model_id,
+                prompt,
+                max_tokens=800,
+                temperature=0.1,
+                system_prompt="You are a DL performance expert that responds in JSON format."
             )
-            text = json.loads(response['body'].read())['content'][0]['text']
             json_match = re.search(r'\{.*\}', text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())

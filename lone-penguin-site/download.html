@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download NeuroTidy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 700;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+            color: var(--text-light);
+        }
+
+        .highlight-text {
+            color: var(--accent-color);
+            letter-spacing: -1px;
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: 700;
+        }
+
+        .page-content {
+            padding: 160px 0 100px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at top center, rgba(168, 85, 247, 0.05) 0%, transparent 70%);
+        }
+
+        .install-box {
+            padding: 0 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        /* Classy Command Grid */
+        .command-grid {
+            margin-top: 60px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            text-align: left;
+        }
+
+        .command-card {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 28px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .command-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at top left, rgba(168, 85, 247, 0.1), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .command-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(168, 85, 247, 0.3);
+            background: rgba(255, 255, 255, 0.04);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(168, 85, 247, 0.05);
+        }
+
+        .command-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(168, 85, 247, 0.1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: var(--accent-color);
+            position: relative;
+            z-index: 2;
+        }
+
+        .card-header {
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 24px;
+            position: relative;
+            z-index: 2;
+        }
+
+        #playground-output {
+            background: rgba(13, 17, 23, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 25px;
+            height: 400px;
+        }
+
+        .terminal-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mac-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .mac-close {
+            background: #ff5f56;
+        }
+
+        .mac-min {
+            background: #ffbd2e;
+        }
+
+        .mac-max {
+            background: #27c93f;
+        }
+
+        .terminal-title {
+            margin-left: auto;
+            margin-right: auto;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .terminal-body {
+            padding: 20px;
+            height: calc(100% - 35px);
+            overflow-y: auto;
+        }
+
+        .code-snippet {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            color: var(--text-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .copy-trigger {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-trigger:hover {
+            color: var(--text-light);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .copy-trigger svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .btn-wrapper {
+            margin-top: 60px;
+        }
+
+        @keyframes pulse-violet {
+            0% {
+                box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(168, 85, 247, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(168, 85, 247, 0);
+            }
+        }
+
+        .analyzing-glow {
+            animation: pulse-violet 2s infinite;
+            border-color: rgba(168, 85, 247, 0.5) !important;
+            background: rgba(168, 85, 247, 0.05) !important;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar scrolled">
+        <div class="nav-container">
+            <a href="index.html" class="brand-logo">
+                <img src="../Assets/image.png" alt="NeuroTidy Logo" class="brand-img-round">
+                <span class="brand-text">NeuroTidy</span>
+            </a>
+            <ul class="nav-menu">
+                <li class="nav-item"><a href="index.html#about" class="nav-link">About Us</a></li>
+                <li class="nav-item"><a href="index.html#contact" class="nav-link">Contact</a></li>
+                <li class="nav-item"><a href="download.html" class="nav-link btn-download">Download</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="page-content">
+        <div class="container">
+            <div class="install-box">
+                <span class="section-tag">Developer Toolkit</span>
+                <h1 class="section-title">Master your <span class="highlight-text">NeuroTidy CLI</span></h1>
+                <p class="section-text" style="max-width: 600px; margin: 0 auto;">Streamline your Deep Learning workflow
+                    with our powerful suite of local analysis tools.</p>
+
+                <div class="command-grid">
+                    <!-- Install -->
+                    <div class="command-card">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path
+                                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                                </path>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                            </svg>
+                        </div>
+                        <div class="card-header">
+                            <h4 class="card-title">Setup</h4>
+                        </div>
+                        <p class="card-desc">Install the core NeuroTidy package via pip to begin analyzing your scripts
+                            globally.</p>
+                        <div class="code-snippet">
+                            <span id="cmd-install">pip install neurotidy</span>
+                            <button class="copy-trigger" onclick="copyCommand('cmd-install')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Explain -->
+                    <div class="command-card">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"></path>
+                                <path d="M12 13V7"></path>
+                                <path d="M12 17h.01"></path>
+                            </svg>
+                        </div>
+                        <div class="card-header">
+                            <h4 class="card-title">Explain</h4>
+                        </div>
+                        <p class="card-desc">Get a deep architectural breakdown of complex Python logic in plain
+                            language.</p>
+                        <div class="code-snippet">
+                            <span id="cmd-explain">neurotidy explain model.py</span>
+                            <button class="copy-trigger" onclick="copyCommand('cmd-explain')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Analyze -->
+                    <div class="command-card">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <div class="card-header">
+                            <h4 class="card-title">Analyze</h4>
+                        </div>
+                        <p class="card-desc">Scan for style violations, security risks, and technical debt
+                            automatically.</p>
+                        <div class="code-snippet">
+                            <span id="cmd-analyze">neurotidy analyze train.py</span>
+                            <button class="copy-trigger" onclick="copyCommand('cmd-analyze')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Optimize -->
+                    <div class="command-card">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                            </svg>
+                        </div>
+                        <div class="card-header">
+                            <h4 class="card-title">Optimize</h4>
+                        </div>
+                        <p class="card-desc">Identify bottlenecks and get expert Deep Learning performance suggestions.
+                        </p>
+                        <div class="code-snippet">
+                            <span id="cmd-optimize">neurotidy optimize train.py</span>
+                            <button class="copy-trigger" onclick="copyCommand('cmd-optimize')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-wrapper">
+                    <a href="index.html" class="auth-btn">Back to Home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyCommand(id) {
+            const text = document.getElementById(id).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector(`button[onclick="copyCommand('${id}')"]`);
+                const originalHtml = btn.innerHTML;
+
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#27c93f" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                }, 1500);
+            });
+        }
+    </script>
+    <script src="js/main.js?v=premium"></script>
+</body>
+
+</html>
