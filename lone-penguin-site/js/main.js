@@ -359,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Format code blocks and bold globally
         text = text.replace(/`([^`]+)`/g, '<code style="color:#2dd4bf; font-weight:bold; background:rgba(0,0,0,0.3); padding:2px 4px; border-radius:4px;">$1</code>');
         text = text.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
-        
+
         // Parse line by line to handle Markdown headings and lists flawlessly
         let formattedLines = text.split('\n').map(line => {
             let t = line.trim();
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return line;
             }
         });
-        
+
         text = formattedLines.join('<br>');
 
         html += `<p style="margin-bottom: 20px;">${text}</p></div>`;
@@ -556,4 +556,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 7. Contact Form Handling
+    const contactForm = document.getElementById('contact-form');
+    const formStatus = document.getElementById('form-status');
+
+    if (contactForm && formStatus) {
+        contactForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = contactForm.querySelector('button[type="submit"]');
+            const originalBtnContent = submitBtn.innerHTML;
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Sending... <span class="btn-icon">🕒</span>';
+
+            // Real API Call
+            try {
+                // Using a relative path or a direct endpoint if BASE_API_URL was available
+                // We'll assume the API is deployed at the same domain or use a placeholder
+                const baseUrl = 'https://neurotidy-api.execute-api.us-east-1.amazonaws.com/prod'; // Update with real URL
+                const response = await fetch(`${baseUrl}/contact`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: contactForm.name.value,
+                        email: contactForm.email.value,
+                        subject: contactForm.subject.value,
+                        message: contactForm.message.value
+                    })
+                });
+
+                if (response.ok) {
+                    formStatus.textContent = 'Thank you! Your message has been sent successfully. We will get back to you soon.';
+                    formStatus.className = 'form-status success';
+                    formStatus.style.display = 'block';
+                    contactForm.reset();
+                } else {
+                    throw new Error('Failed to send message');
+                }
+            } catch (err) {
+                console.error(err);
+                formStatus.textContent = 'Sorry, there was an error sending your message. Please try again later or email us directly.';
+                formStatus.className = 'form-status error';
+                formStatus.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnContent;
+
+                // Hide status after 8 seconds
+                setTimeout(() => {
+                    formStatus.style.display = 'none';
+                    formStatus.className = 'form-status';
+                }, 8000);
+            }
+        });
+    }
 });
