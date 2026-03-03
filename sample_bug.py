@@ -1,5 +1,5 @@
 def calculate_average(nums):
-    # A simple bug for the AI to find pull
+    # A simple bug for the AI to find pull jdnsjfn
     sum_nums = sum(nums)
     count = len(nums)
     return sum_nums / count if count > 0 else 0
