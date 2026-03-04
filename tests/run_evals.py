@@ -4,7 +4,9 @@ import sys
 import time
 from eval_dataset import EVAL_DATASET
 
-API_BASE = "https://1d21iee6x0.execute-api.us-east-1.amazonaws.com/prod"
+import os
+
+API_BASE = os.environ.get("API_BASE_URL", "https://1d21iee6x0.execute-api.us-east-1.amazonaws.com/prod")
 
 def run_eval_case(case):
     endpoint = case["endpoint"]

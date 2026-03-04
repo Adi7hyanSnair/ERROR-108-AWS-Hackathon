@@ -44,6 +44,16 @@ Parameters:
     Default: '1.0'
     Description: Base delay (seconds) for exponential backoff retries.
 
+  ContactSenderEmail:
+    Type: String
+    Default: 'error108aws@gmail.com'
+    Description: SES verified email address used as the From address for contact form emails.
+
+  ContactRecipientEmails:
+    Type: String
+    Default: 'error108aws@gmail.com,akash2.fakest@gmail.com'
+    Description: Comma-separated list of SES verified recipient email addresses for contact form submissions.
+
 Resources:
   # ─── S3 Bucket ───────────────────────────────────────────
   AnalysisResultsBucket:
@@ -127,6 +137,11 @@ Resources:
                   - bedrock-agent-runtime:Retrieve
                   - bedrock-agent-runtime:RetrieveAndGenerate
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
 
   # ─── Lambda Function ─────────────────────────────────────
   AnalyzerFunction:
@@ -154,6 +169,8 @@ Resources:
           BEDROCK_TEMPERATURE: '0.1'
           BEDROCK_TOP_P: '0.9'
           LOG_LEVEL: INFO
+          CONTACT_SENDER_EMAIL: !Ref ContactSenderEmail
+          CONTACT_RECIPIENT_EMAILS: !Ref ContactRecipientEmails
       Events:
         # Endpoint 1: Code Explanation
         ExplainEvent:
@@ -188,6 +205,13 @@ Resources:
           Type: Api
           Properties:
             Path: /review
+            Method: POST
+            RestApiId: !Ref ApiGateway
+        # Endpoint 6: Contact Form (SES)
+        ContactEvent:
+          Type: Api
+          Properties:
+            Path: /contact
             Method: POST
             RestApiId: !Ref ApiGateway
         # CORS preflight for all routes
@@ -229,6 +253,10 @@ Outputs:
   ReviewEndpoint:
     Description: GitHub PR review bot webhook endpoint
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/review'
+
+  ContactEndpoint:
+    Description: Contact form email endpoint (SES)
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/contact'
 
   BaseApiUrl:
     Description: Base API URL (set this as NEUROTIDY_API_ENDPOINT in config.env)

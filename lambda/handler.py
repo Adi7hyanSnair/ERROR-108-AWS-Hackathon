@@ -24,6 +24,7 @@ s3_client = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 bedrock_client = boto3.client("bedrock-runtime", region_name=REGION)
 bedrock_agent_client = boto3.client("bedrock-agent-runtime", region_name=REGION)
+ses_client = boto3.client("ses", region_name=REGION)
 
 # ─── Environment Variables ─────────────────────────────────────────────────
 S3_BUCKET = os.environ.get("S3_BUCKET", "neurotidy-results")
@@ -34,6 +35,14 @@ CACHE_TTL = int(os.environ.get("CACHE_TTL_SECONDS", "86400"))
 GITHUB_APP_ID = os.environ.get("GITHUB_APP_ID", "")
 GITHUB_PRIVATE_KEY_PATH = os.environ.get("GITHUB_PRIVATE_KEY_PATH", "")
 GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
+
+# Contact email config (set these as Lambda env vars)
+CONTACT_SENDER    = os.environ.get("CONTACT_SENDER_EMAIL", "error108aws@gmail.com")
+CONTACT_RECIPIENTS = [
+    e.strip() for e in
+    os.environ.get("CONTACT_RECIPIENT_EMAILS", "error108aws@gmail.com,akash2.fakest@gmail.com").split(",")
+    if e.strip()
+]
 
 table = dynamodb.Table(DYNAMODB_TABLE)
 
@@ -96,6 +105,10 @@ def lambda_handler(event, context):
 
     path = event.get("path", "/explain").rstrip("/")
     action = path.split("/")[-1]
+
+    # ── /contact — send email via SES ──────────────────────────────────────
+    if action == "contact":
+        return _handle_contact(event)
 
     # ── /review is handled separately (raw body for HMAC, JSON for payload) ──
     if action == "review":
@@ -177,11 +190,72 @@ def lambda_handler(event, context):
                              "s3_location": f"s3://{S3_BUCKET}/{s3_key}"})
 
         else:
-            return _error(404, f"Unknown action '{action}'. Use: /explain /analyze /optimize /debug /review")
+            return _error(404, f"Unknown action '{action}'. Use: /explain /analyze /optimize /debug /review /contact")
 
     except Exception as e:
         print(f"[ERROR] {action}: {e}")
         return _error(500, f"Internal error: {str(e)}")
+
+
+
+def _handle_contact(event: dict) -> dict:
+    """
+    Handle contact form submission.
+    Sends an email via SES to all configured recipient addresses.
+    """
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError:
+        return _error(400, "Invalid JSON body")
+
+    name    = (body.get("name") or "").strip()
+    email   = (body.get("email") or "").strip()
+    subject = (body.get("subject") or "Contact Form Submission").strip()
+    message = (body.get("message") or "").strip()
+
+    if not name or not email or not message:
+        return _error(400, "Fields 'name', 'email', and 'message' are required")
+
+    email_subject = f"[NeuroTidy Contact] {subject}"
+    email_body_text = (
+        f"New contact form submission from {name} ({email}):\n\n"
+        f"{message}\n\n"
+        f"---\nReply directly to this email to respond to {name}."
+    )
+    email_body_html = f"""
+    <html><body style="font-family:sans-serif;">
+      <h2 style="color:#7c3aed;">NeuroTidy – New Contact Message</h2>
+      <table style="border-collapse:collapse;">
+        <tr><td style="padding:6px 12px;"><strong>Name:</strong></td><td style="padding:6px 12px;">{name}</td></tr>
+        <tr><td style="padding:6px 12px;"><strong>Email:</strong></td><td style="padding:6px 12px;"><a href="mailto:{email}">{email}</a></td></tr>
+        <tr><td style="padding:6px 12px;"><strong>Subject:</strong></td><td style="padding:6px 12px;">{subject}</td></tr>
+      </table>
+      <hr/>
+      <p style="white-space:pre-wrap;">{message}</p>
+      <hr/>
+      <p style="color:#6b7280;font-size:12px;">Sent via NeuroTidy contact form</p>
+    </body></html>
+    """
+
+    try:
+        ses_client.send_email(
+            Source=CONTACT_SENDER,
+            Destination={"ToAddresses": CONTACT_RECIPIENTS},
+            ReplyToAddresses=[email],
+            Message={
+                "Subject": {"Data": email_subject, "Charset": "UTF-8"},
+                "Body": {
+                    "Text": {"Data": email_body_text, "Charset": "UTF-8"},
+                    "Html": {"Data": email_body_html, "Charset": "UTF-8"},
+                },
+            },
+        )
+        print(f"[INFO] Contact email sent from {email} to {CONTACT_RECIPIENTS}")
+        return _success({"status": "sent", "message": "Your message has been received. We will get back to you soon!"})
+
+    except Exception as exc:
+        print(f"[ERROR] SES send_email failed: {exc}")
+        return _error(500, f"Failed to send email: {str(exc)}")
 
 
 def _handle_review(event: dict) -> dict:
