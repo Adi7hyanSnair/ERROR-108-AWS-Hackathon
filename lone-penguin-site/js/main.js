@@ -573,9 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Real API Call
             try {
-                // Using a relative path or a direct endpoint if BASE_API_URL was available
-                // We'll assume the API is deployed at the same domain or use a placeholder
-                const baseUrl = 'https://neurotidy-api.execute-api.us-east-1.amazonaws.com/prod'; // Update with real URL
+                const baseUrl = "__API_BASE_URL__";
                 const response = await fetch(`${baseUrl}/contact`, {
                     method: 'POST',
                     headers: {
