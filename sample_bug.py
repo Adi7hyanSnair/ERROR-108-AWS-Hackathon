@@ -1,5 +1,5 @@
 def calculate_average(nums):
-    # A simple bug for the AI to find
+    # A simple bug for the AI to find pull
     sum_nums = sum(nums)
     count = len(nums)
     return sum_nums / count if count > 0 else 0
